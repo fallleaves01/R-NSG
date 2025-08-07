@@ -3,13 +3,15 @@
 
 namespace TDFANN {
 
+namespace Vector {
+
 template <typename T>
 class VectorList {
    public:
     using value_type = T;
 
     // file operations
-    VectorList() {};
+    VectorList() = default;
     VectorList(const std::string& filename);
     void save(const std::string& filename) const;
     void load(const std::string& filename);
@@ -35,12 +37,16 @@ class VectorList {
     unsigned dimension = 0;  // 向量维度
 };
 
+}  // namespace Vector
+
 }  // namespace TDFANN
 
 //>===========================================================<
 
 // Implementation of VectorList methods
 namespace TDFANN {
+
+namespace Vector {
 // file operations
 template <typename T>
 VectorList<T>::VectorList(const std::string& filename) {
@@ -131,5 +137,7 @@ T VectorList<T>::dist(size_t source, const Op& goal) {
 
     return dist2(source, goal);
 }
+
+}  // namespace Vector
 
 }  // namespace TDFANN

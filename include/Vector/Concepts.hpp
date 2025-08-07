@@ -4,7 +4,7 @@
 
 namespace TDFANN {
 
-namespace VectorLib {
+namespace Vector {
 
 /// @concept vector_like
 /// @brief 定义向量类类型的要求
@@ -27,6 +27,9 @@ template <typename T>
 concept indexable = requires(T container, size_t index) {
     { container[index] } -> std::convertible_to<double>;
 };
+
+template <typename T>
+concept IsFloat = std::is_same_v<T, float> || std::is_same_v<T, double>;
 
 }  // namespace VectorLib
 
