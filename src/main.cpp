@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 
     if (build_cmd->parsed()) {
         spdlog::info("Building TDF Graph Index...");
-        VectorList<float> vector_list(vector_file);
+        Vector::VectorList<float> vector_list(vector_file);
         
     } else if (query_cmd->parsed()) {
         spdlog::info("Querying Nearest Neighbors...");
