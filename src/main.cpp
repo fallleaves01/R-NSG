@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
 
     
-    Init::setup_logger(verbose);
+    Utils::setup_logger(verbose);
 
     if (build_cmd->parsed()) {
         spdlog::info("Building TDF Graph Index...");

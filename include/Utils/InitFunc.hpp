@@ -1,7 +1,7 @@
 #pragma once
 
 namespace TDFANN {
-namespace Init {
+namespace Utils {
 
 void setup_logger(bool);
 
