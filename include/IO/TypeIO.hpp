@@ -25,14 +25,19 @@ namespace IO {
 
 template <typename T>
 bool save(std::ostream& fout, const T& obj) {
+    if (!fout) {
+        return false;
+    }
     if constexpr (HasSaveFSMethod<T>) {
         return obj.save(fout);
     } else if constexpr (TriviallySerializable<T>) {
         fout.write(reinterpret_cast<const char*>(&obj), sizeof(T));
-        return true;
+        return fout.good();
     } else if constexpr (StandardContainer<T>) {
         size_t size = obj.size();
-        fout.write(reinterpret_cast<const char*>(&size), sizeof(size));
+        if (!save(fout, size)) {
+            return false;
+        }
         for (const auto& item : obj) {
             if (!save(fout, item)) {
                 return false;
@@ -46,6 +51,9 @@ bool save(std::ostream& fout, const T& obj) {
 
 template <typename T>
 bool load(std::istream& fin, T& obj) {
+    if (!fin) {
+        return false;
+    }
     if constexpr (HasLoadFSMethod<T>) {
         return obj.load(fin);
     } else if constexpr (TriviallySerializable<T>) {
@@ -53,7 +61,9 @@ bool load(std::istream& fin, T& obj) {
         return fin.good();
     } else if constexpr (StandardContainer<T>) {
         size_t size;
-        fin.read(reinterpret_cast<char*>(&size), sizeof(size));
+        if (!load(fin, size)) {
+            return false;
+        }
         std::vector<typename T::value_type> temp(size);
         for (size_t i = 0; i < size; ++i) {
             if (!load(fin, temp[i])) {
