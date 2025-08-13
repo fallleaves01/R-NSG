@@ -26,8 +26,7 @@ namespace IO {
 template <typename T>
 bool save(std::ostream& fout, const T& obj) {
     if constexpr (HasSaveFSMethod<T>) {
-        obj.save(fout);
-        return true;
+        return obj.save(fout);
     } else if constexpr (TriviallySerializable<T>) {
         fout.write(reinterpret_cast<const char*>(&obj), sizeof(T));
         return true;
@@ -48,8 +47,7 @@ bool save(std::ostream& fout, const T& obj) {
 template <typename T>
 bool load(std::istream& fin, T& obj) {
     if constexpr (HasLoadFSMethod<T>) {
-        obj.load(fin);
-        return true;
+        return obj.load(fin);
     } else if constexpr (TriviallySerializable<T>) {
         fin.read(reinterpret_cast<char*>(&obj), sizeof(T));
         return fin.good();

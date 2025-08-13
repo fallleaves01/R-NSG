@@ -7,12 +7,15 @@ namespace IO {
 
 // 检查是否有save方法
 template <typename T>
-concept HasSaveFSMethod =
-    requires(const T& obj, std::ostream& os) { obj.save(os); };
+concept HasSaveFSMethod = requires(const T& obj, std::ostream& os) {
+    { obj.save(os) } -> std::convertible_to<bool>;
+};
 
 // 检查是否有load方法
 template <typename T>
-concept HasLoadFSMethod = requires(T& obj, std::istream& is) { obj.load(is); };
+concept HasLoadFSMethod = requires(T& obj, std::istream& is) {
+    { obj.load(is) } -> std::convertible_to<bool>;
+};
 
 // 检查是否是平凡类型（可直接二进制读写）
 template <typename T>
