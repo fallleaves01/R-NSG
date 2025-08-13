@@ -82,7 +82,7 @@ std::vector<size_t> Searcher<T, G>::beam_search(const GoalId& goal,
         std::get<2>(*it) = true;  // 标记为已处理
 
         // 获取当前节点的邻居
-        auto neighbours = graph.get_neighbours(current_node);
+        auto neighbours = graph.get_neighbours_id(current_node);
         for (const auto& neighbour : neighbours) {
             T dist = dataset.dist(neighbour, goal);
             candidates.push_back({dist, neighbour, false});
