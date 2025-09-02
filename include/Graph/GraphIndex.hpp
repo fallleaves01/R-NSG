@@ -11,7 +11,7 @@ class GraphIndex {
    public:
     struct Node {
         size_t to;
-        Data data;
+        [[no_unique_address]] Data data;
     };
     GraphIndex(size_t node_cnt) : edges(node_cnt) {}
     size_t add_node() {

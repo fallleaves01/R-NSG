@@ -21,7 +21,7 @@ Graph::GraphIndex<std::monostate> nn_descent(
     spdlog::info("start KNN train with size {}, dim {}", dataset.size(),
                  dataset.dim());
     faiss::IndexNNDescentFlat index(dataset.dim(), k);
-    index.verbose = true;
+    // index.verbose = true;
     index.add(dataset.size(), data.data());
     spdlog::info("KNN final trained = {}, graph size = {}", index.is_trained,
                  index.nndescent.graph.size());

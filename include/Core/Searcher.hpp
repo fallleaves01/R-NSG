@@ -56,16 +56,16 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
                   "GoalId must be convertible to size_t or a vector-like type");
 
     std::priority_queue<std::pair<T, size_t>> heap;
-    for (int i = 0; i < dataset.size(); i++) {
+    for (size_t i = 0; i < dataset.size(); i++) {
         heap.push({dataset.dist(i, goal), i});
         if (heap.size() > k) {
             heap.pop();
         }
     }
-    std::vector<size_t> result;
+    std::vector<std::pair<T, size_t>> result;
     result.reserve(k);
     while (!heap.empty()) {
-        result.push_back(heap.top().second);
+        result.push_back(heap.top());
         heap.pop();
     }
     return result;
