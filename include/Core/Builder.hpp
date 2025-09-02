@@ -26,8 +26,8 @@ template <typename T>
 Graph::TDGraphIndexBase Builder<T>::build() {
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
-    Graph::TagGraphIndex left(vector_list.size()), right(vector_list.size());
-    auto build = [&](Graph::TagGraphIndex& g, auto&& id, auto&& cmp) {
+    Graph::GraphIndex<size_t> left(vector_list.size()), right(vector_list.size());
+    auto build = [&](Graph::GraphIndex<size_t>& g, auto&& id, auto&& cmp) {
         Searcher searcher(vector_list, g);
         std::vector<std::vector<std::pair<T, size_t>>> candidates(
             vector_list.size());
@@ -49,7 +49,7 @@ Graph::TDGraphIndexBase Builder<T>::build() {
             candidates[i] = prune(candidates[i]);
             auto r =
                 candidates[i] | std::views::transform([](const auto& x) {
-                    return Graph::TagGraphIndex::Node{x.second, size_t(-1)};
+                    return Graph::GraphIndex<size_t>::Node{x.second, size_t(-1)};
                 });
             g.add_neighbours(i, r);
         }

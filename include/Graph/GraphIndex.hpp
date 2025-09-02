@@ -6,13 +6,18 @@ namespace TDFANN {
 
 namespace Graph {
 
-class TagGraphIndex {
+template <typename Data>
+class GraphIndex {
    public:
     struct Node {
-        size_t to, banned_id;
+        size_t to;
+        Data data;
     };
-    TagGraphIndex(size_t node_cnt);
-    size_t add_node();
+    GraphIndex(size_t node_cnt) : edges(node_cnt) {}
+    size_t add_node() {
+        edges.emplace_back();
+        return edges.size() - 1;
+    }
     void add_neighbours(size_t from, std::ranges::range auto&& to) {
         edges[from].insert(edges[from].end(), to.begin(), to.end());
     }
@@ -23,8 +28,12 @@ class TagGraphIndex {
         return get_neighbours(node) |
                std::views::transform([](auto x) { return x.to; });
     }
-    bool save(std::ofstream& fout) const;
-    bool load(std::ifstream& fin);
+    bool save(std::ofstream& fout) const {
+        return IO::save(fout, edges);
+    }
+    bool load(std::ifstream& fin) {
+        return IO::load(fin, edges);
+    }
 
    private:
     std::vector<std::vector<Node>> edges;
@@ -32,10 +41,14 @@ class TagGraphIndex {
 
 class TDGraphIndexBase {
    public:
-    TDGraphIndexBase(TagGraphIndex&& left, TagGraphIndex&& right)
+    TDGraphIndexBase(GraphIndex<size_t>&& left, GraphIndex<size_t>&& right)
         : left(std::move(left)), right(std::move(right)) {}
-    bool save(std::ofstream& fout) const;
-    bool load(std::ifstream& fin);
+    bool save(std::ofstream& fout) const {
+        return left.save(fout) && right.save(fout);
+    }
+    bool load(std::ifstream& fin) {
+        return left.load(fin) && right.load(fin);
+    }
 
     class TDGraphIndex {
        public:
@@ -62,7 +75,7 @@ class TDGraphIndexBase {
     }
 
    private:
-    TagGraphIndex left, right;
+    GraphIndex<size_t> left, right;
 };
 
 }  // namespace Graph
