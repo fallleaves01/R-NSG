@@ -1,5 +1,6 @@
 #include <PCH.hpp>
 #include <Utils/InitFunc.hpp>
+#include "Core/Builder.hpp"
 #include "Vector/VectorList.hpp"
 using namespace TDFANN;
 
@@ -37,7 +38,13 @@ int main(int argc, char** argv) {
     if (build_cmd->parsed()) {
         spdlog::info("Building TDF Graph Index...");
         Vector::VectorList<float> vector_list(vector_file);
-        
+        Builder builder(vector_list);
+        auto g = builder.build();
+        std::ofstream fout(index_file);
+        if (!fout.good() || !g.save(fout)) {
+            spdlog::error("Failed to save index to {}", index_file);
+            return 1;
+        }
     } else if (query_cmd->parsed()) {
         spdlog::info("Querying Nearest Neighbors...");
     }
