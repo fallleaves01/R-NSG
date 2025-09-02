@@ -1,6 +1,6 @@
 #pragma once
-#include <PCH.hpp>
 #include <IO/Concepts.hpp>
+#include <PCH.hpp>
 
 namespace TDFANN {
 
@@ -12,16 +12,9 @@ bool save(std::ostream& fout, const T& obj);
 template <typename T>
 bool load(std::istream& fin, T& obj);
 
-}  // namespace IO
-
-}  // namespace TDFANN
-
 //>===========================================================<
 
 // implementation of IO functions
-namespace TDFANN {
-
-namespace IO {
 
 template <typename T>
 bool save(std::ostream& fout, const T& obj) {

@@ -11,24 +11,36 @@ class Searcher {
    public:
     Searcher(const Vector::VectorList<T>& data, const G& graph);
 
+    /**
+     * @brief Perform a linear search for the top k results.
+     *
+     * @return top k results as {distance, index}
+     */
     template <typename GoalId>
-    std::vector<size_t> linear_search(const GoalId& goal, size_t k);
+    std::vector<std::pair<T, size_t>> linear_search(const GoalId& goal,
+                                                    size_t k);
 
+    /**
+     * @brief return top k nearest neighbours
+     *
+     * @param goal node id
+     * @param k number of neighbours
+     * @param start_node start routing node on the graph
+     * @param beam_size searching beam size
+     * @return return vector{{distance, index}}
+     */
     template <typename GoalId>
-    std::vector<size_t> beam_search(const GoalId& goal,
-                                    size_t k,
-                                    size_t start_node,
-                                    size_t beam_size);
+    std::vector<std::pair<T, size_t>> beam_search(const GoalId& goal,
+                                                  size_t k,
+                                                  size_t start_node,
+                                                  size_t beam_size);
 
    private:
     const Vector::VectorList<T>& dataset;
     const G& graph;
 };
 
-}  // namespace TDFANN
-
 // implementation of Searcher methods
-namespace TDFANN {
 
 template <typename T, Graph::GraphLike G>
 Searcher<T, G>::Searcher(const Vector::VectorList<T>& data, const G& graph)
@@ -36,8 +48,9 @@ Searcher<T, G>::Searcher(const Vector::VectorList<T>& data, const G& graph)
 
 template <typename T, Graph::GraphLike G>
 template <typename GoalId>
-std::vector<size_t> Searcher<T, G>::linear_search(const GoalId& goal,
-                                                  size_t k) {
+std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
+    const GoalId& goal,
+    size_t k) {
     static_assert(std::is_convertible_v<GoalId, size_t> ||
                       std::is_convertible_v<GoalId, Vector::VectorType<T>>,
                   "GoalId must be convertible to size_t or a vector-like type");
@@ -60,7 +73,7 @@ std::vector<size_t> Searcher<T, G>::linear_search(const GoalId& goal,
 
 template <typename T, Graph::GraphLike G>
 template <typename GoalId>
-std::vector<size_t> Searcher<T, G>::beam_search(const GoalId& goal,
+std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(const GoalId& goal,
                                                 size_t k,
                                                 size_t start_node,
                                                 size_t beam_size) {
@@ -98,10 +111,10 @@ std::vector<size_t> Searcher<T, G>::beam_search(const GoalId& goal,
         }
     }
 
-    candidates.resize(k);
-    auto r = candidates | std::views::transform([](const auto& c) {
-        return std::get<1>(c);  // 提取节点索引
-    });
+    auto r = candidates | std::views::take(k) |
+             std::views::transform([](const auto& c) {
+                 return std::pair{std::get<0>(c), std::get<1>(c)};  // 提取节点索引
+             });
     return std::vector(r.begin(), r.end());
 }
 

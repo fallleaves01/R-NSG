@@ -1,6 +1,6 @@
 #pragma once
-#include <PCH.hpp>
 #include <IO/TypeIO.hpp>
+#include <PCH.hpp>
 
 namespace TDFANN {
 
@@ -9,11 +9,13 @@ namespace Graph {
 class TagGraphIndex {
    public:
     struct Node {
-        size_t to, tag, banned_id;
+        size_t to, banned_id;
     };
     TagGraphIndex(size_t node_cnt);
     size_t add_node();
-    void add_neighbours(size_t from, const std::vector<Node>& to);
+    void add_neighbours(size_t from, std::ranges::range auto&& to) {
+        edges[from].insert(edges[from].end(), to.begin(), to.end());
+    }
     const std::vector<Node>& get_neighbours(size_t node) const {
         return edges[node];
     }
@@ -44,7 +46,7 @@ class TDGraphIndexBase {
             auto& id_r = base.right.get_neighbours(node);
             return std::array{id_l, id_r} | std::views::join |
                    std::views::filter(
-                       [this](auto x) { return l <= x.tag && x.tag <= r; });
+                       [this](auto x) { return l <= x.to && x.to <= r; });
         }
         auto get_neighbours_id(size_t node) const {
             return get_neighbours(node) |

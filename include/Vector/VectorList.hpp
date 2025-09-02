@@ -19,9 +19,9 @@ class VectorList {
     // calculation operations
     void init_sqrs();
     template <typename Op>
-    T dist2(size_t source, const Op& goal);
+    T dist2(size_t source, const Op& goal) const;
     template <typename Op>
-    T dist(size_t source, const Op& goal);
+    T dist(size_t source, const Op& goal) const;
 
     // struct operations
     const VectorType<T>& operator[](size_t index) const {
@@ -115,7 +115,7 @@ void VectorList<T>::init_sqrs() {
 
 template <typename T>
 template <typename Op>
-T VectorList<T>::dist2(size_t source, const Op& goal) {
+T VectorList<T>::dist2(size_t source, const Op& goal) const {
     static_assert(std::is_convertible_v<Op, size_t> ||
                       std::is_convertible_v<Op, VectorType<T>>,
                   "Op must be convertible to size_t or a vector-like type");
@@ -130,7 +130,7 @@ T VectorList<T>::dist2(size_t source, const Op& goal) {
 
 template <typename T>
 template <typename Op>
-T VectorList<T>::dist(size_t source, const Op& goal) {
+T VectorList<T>::dist(size_t source, const Op& goal) const {
     static_assert(std::is_convertible_v<Op, size_t> ||
                       std::is_convertible_v<Op, VectorType<T>>,
                   "Op must be convertible to size_t or a vector-like type");
