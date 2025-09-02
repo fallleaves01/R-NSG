@@ -1,7 +1,9 @@
 #include <PCH.hpp>
 #include <Utils/InitFunc.hpp>
-#include "Core/Builder.hpp"
-#include "Vector/VectorList.hpp"
+#include <Core/Builder.hpp>
+#include <Core/NN_Descent.hpp>
+#include <Vector/VectorList.hpp>
+#include <chrono>
 using namespace TDFANN;
 
 int main(int argc, char** argv) {
@@ -38,13 +40,30 @@ int main(int argc, char** argv) {
     if (build_cmd->parsed()) {
         spdlog::info("Building TDF Graph Index...");
         Vector::VectorList<float> vector_list(vector_file);
-        Builder builder(vector_list);
-        auto g = builder.build();
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto g = KNNG::nn_descent(vector_list, 5);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        spdlog::info("Built KNN Graph Index in {} ms", duration.count());
+        // Builder builder(vector_list);
+        // auto g = builder.build();
         std::ofstream fout(index_file);
         if (!fout.good() || !g.save(fout)) {
             spdlog::error("Failed to save index to {}", index_file);
             return 1;
         }
+        int x = 99853;
+        Searcher searcher(vector_list, g);
+        auto r = searcher.linear_search(x, 5);
+        std::cout << "Nearest nodes: ";
+        for (auto [d, v] : r) {
+            std::cout << v << ' ';
+        }
+        std::cout << "\nNearest neighbours: ";
+        for (auto d : g.get_neighbours_id(x)) {
+            std::cout << d << ' ';
+        }
+        std::cout << '\n';
     } else if (query_cmd->parsed()) {
         spdlog::info("Querying Nearest Neighbors...");
     }

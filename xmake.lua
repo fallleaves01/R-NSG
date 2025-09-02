@@ -6,7 +6,12 @@ add_rules("plugin.compile_commands.autoupdate", {
     lsp = "clangd"       -- 可选：生成后通知LSP服务器
 })
 
-add_requires("cli11", "spdlog", "eigen")
+add_repositories("local repo")
+add_requires("cli11", "spdlog", "eigen", "openmp", "openblas")
+add_requires("faiss-cpu")
+-- add_requires("kgraph", {repo = "https://gitee.com/tann/kgraph.git"})
+-- add_requires("git::https://gitee.com/tann/kgraph.git", {force = true})
+-- add_requires("git::https://gitee.com/tann/kgraph.git", {system = false})
 
 target("TDFANN")
     set_kind("binary")
@@ -14,8 +19,7 @@ target("TDFANN")
     add_links("stdc++")
     add_syslinks("pthread")
 
-    add_packages("cli11", "spdlog", "eigen")
-
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas")
     add_files("src/**.cpp")
 
     set_pcxxheader("include/PCH.hpp")  -- 设置预编译头文件
