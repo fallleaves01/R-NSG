@@ -92,6 +92,8 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     candidates.push_back({dataset.dist(start_node, goal), start_node, false});
 
     size_t total_candidates = 0;
+    std::set<size_t> visited;
+    visited.insert(start_node);
     for (size_t uid = 0; uid < beam_size; uid++) {
         if (std::get<2>(candidates[uid])) {
             continue;  // 已处理过，跳过
@@ -101,8 +103,11 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
 
         // 获取当前节点的邻居
         auto neighbours = graph.get_neighbours_id(current_node);
-        //??? todo
         for (const auto& neighbour : neighbours) {
+            if (visited.count(neighbour)) {
+                continue;  // 已访问过，跳过
+            }
+            visited.insert(neighbour);
             T dist = dataset.dist(neighbour, goal);
             auto it = std::ranges::partition_point(
                 candidates,

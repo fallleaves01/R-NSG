@@ -9,9 +9,6 @@ add_rules("plugin.compile_commands.autoupdate", {
 add_repositories("local repo")
 add_requires("cli11", "spdlog", "eigen", "openmp", "openblas")
 add_requires("faiss-cpu")
--- add_requires("kgraph", {repo = "https://gitee.com/tann/kgraph.git"})
--- add_requires("git::https://gitee.com/tann/kgraph.git", {force = true})
--- add_requires("git::https://gitee.com/tann/kgraph.git", {system = false})
 
 target("TDFANN")
     set_kind("binary")

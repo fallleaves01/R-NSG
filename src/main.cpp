@@ -1,5 +1,6 @@
-#include <Core/Builder.hpp>
 #include <PCH.hpp>
+
+#include <Core/Builder.hpp>
 #include <Utils/InitFunc.hpp>
 #include <Vector/VectorList.hpp>
 using namespace TDFANN;
