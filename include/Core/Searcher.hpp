@@ -1,8 +1,11 @@
 #pragma once
-#include <Graph/Concepts.hpp>
 #include <PCH.hpp>
+
+#include <Graph/Concepts.hpp>
+#include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 #include <Vector/VectorType.hpp>
+#include <limits>
 
 namespace TDFANN {
 
@@ -73,48 +76,62 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
 
 template <typename T, Graph::GraphLike G>
 template <typename GoalId>
-std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(const GoalId& goal,
-                                                size_t k,
-                                                size_t start_node,
-                                                size_t beam_size) {
+std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
+    const GoalId& goal,
+    size_t k,
+    size_t start_node,
+    size_t beam_size) {
     static_assert(std::is_convertible_v<GoalId, size_t> ||
                       std::is_convertible_v<GoalId, Vector::VectorType<T>>,
                   "GoalId must be convertible to size_t or a vector-like type");
 
+    // spdlog::debug("start beam search");
+    Timer::start("beam_search");
+
     std::vector<std::tuple<T, size_t, bool>> candidates;
     candidates.push_back({dataset.dist(start_node, goal), start_node, false});
 
-    auto check_unused = [](const auto& c) {
-        return !std::get<2>(c);  // 检查是否未处理
-    };
-
-    for (auto it = std::ranges::find_if(candidates, check_unused);
-         it != candidates.end();
-         it = std::ranges::find_if(it, candidates.end(), check_unused)) {
-        size_t current_node = std::get<1>(*it);
-        std::get<2>(*it) = true;  // 标记为已处理
+    size_t total_candidates = 0;
+    for (size_t uid = 0; uid < beam_size; uid++) {
+        if (std::get<2>(candidates[uid])) {
+            continue;  // 已处理过，跳过
+        }
+        size_t current_node = std::get<1>(candidates[uid]);
+        std::get<2>(candidates[uid]) = true;  // 标记为已处理
 
         // 获取当前节点的邻居
         auto neighbours = graph.get_neighbours_id(current_node);
+        //??? todo
         for (const auto& neighbour : neighbours) {
             T dist = dataset.dist(neighbour, goal);
-            candidates.push_back({dist, neighbour, false});
-        }
-
-        // 保持候选项数量不超过 beam_size
-        if (candidates.size() > beam_size) {
-            std::sort(candidates.begin(), candidates.end(),
-                      [](const auto& a, const auto& b) {
-                          return std::get<0>(a) < std::get<0>(b);
-                      });
-            candidates.resize(beam_size);
+            auto it = std::ranges::partition_point(
+                candidates,
+                [&](const auto& x) { return std::get<0>(x) < dist; });
+            if (it != candidates.end() && std::get<1>(*it) != neighbour) {
+                if (candidates.size() == beam_size) {
+                    candidates.pop_back();
+                }
+                uid = std::min(uid, it - candidates.begin() - size_t(1));
+                candidates.insert(it, {dist, neighbour, false});
+                ++total_candidates;
+            } else if (candidates.size() < beam_size){
+                candidates.push_back({dist, neighbour, false});
+                ++total_candidates;
+            }
         }
     }
 
-    auto r = candidates | std::views::take(k) |
-             std::views::transform([](const auto& c) {
-                 return std::pair{std::get<0>(c), std::get<1>(c)};  // 提取节点索引
-             });
+    auto r =
+        candidates | std::views::take(k) |
+        std::views::transform([](const auto& c) {
+            return std::pair{std::get<0>(c), std::get<1>(c)};  // 提取节点索引
+        });
+
+    // spdlog::debug("beam search ends");
+    Timer::end("beam_search");
+
+    // spdlog::debug("beam search total candidates {}, time cost {}",
+    // total_candidates, Timer::read("beam_search"));
     return std::vector(r.begin(), r.end());
 }
 
