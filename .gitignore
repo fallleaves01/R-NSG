@@ -3,8 +3,10 @@
 .vscode/compile_commands.json
 .xmake/
 build/
+
 logs/
 dataset/
+test_data/
 
 # MacOS Cache
 .DS_Store
