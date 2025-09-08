@@ -3,7 +3,7 @@
 namespace TDFANN {
 namespace Utils {
 
-inline void setup_logger(bool verbose) {
+inline void setup_logger(bool verbose, std::string name) {
     // 创建logs目录
     std::filesystem::create_directories("logs");
 
@@ -22,7 +22,7 @@ inline void setup_logger(bool verbose) {
     dist_sink->add_sink(file_sink);
 
     // 创建logger
-    auto logger = std::make_shared<spdlog::logger>("tdfann", dist_sink);
+    auto logger = std::make_shared<spdlog::logger>(name, dist_sink);
     logger->set_level(spdlog::level::info);
 
     // 设置为默认logger

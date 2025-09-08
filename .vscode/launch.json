@@ -27,14 +27,6 @@
                     "ignoreFailures": true
                 }
             ]
-        },
-        {
-            "type": "xmake",
-            "request": "launch",
-            "name": "Debug XMake target",
-            "target": "target name",
-            "cwd": "${workspaceFolder}",
-            "stopAtEntry": true
         }
     ]
 }
