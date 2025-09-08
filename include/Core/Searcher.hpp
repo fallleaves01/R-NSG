@@ -5,7 +5,6 @@
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 #include <Vector/VectorType.hpp>
-#include <limits>
 
 namespace TDFANN {
 
@@ -86,14 +85,12 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
                   "GoalId must be convertible to size_t or a vector-like type");
 
     // spdlog::debug("start beam search");
-    Timer::start("beam_search");
 
     std::vector<std::tuple<T, size_t, bool>> candidates;
     candidates.push_back({dataset.dist(start_node, goal), start_node, false});
 
-    size_t total_candidates = 0;
-    std::set<size_t> visited;
-    visited.insert(start_node);
+    // std::set<size_t> visited;
+    // visited.insert(start_node);
     for (size_t uid = 0; uid < beam_size; uid++) {
         if (std::get<2>(candidates[uid])) {
             continue;  // 已处理过，跳过
@@ -104,24 +101,22 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         // 获取当前节点的邻居
         auto neighbours = graph.get_neighbours_id(current_node);
         for (const auto& neighbour : neighbours) {
-            if (visited.count(neighbour)) {
-                continue;  // 已访问过，跳过
-            }
-            visited.insert(neighbour);
+            // if (visited.count(neighbour)) {
+            //     continue;  // 已访问过，跳过
+            // }
+            // visited.insert(neighbour);
             T dist = dataset.dist(neighbour, goal);
+            auto now = std::tuple{dist, neighbour, false};
             auto it = std::ranges::partition_point(
-                candidates,
-                [&](const auto& x) { return std::get<0>(x) < dist; });
+                candidates, [&](const auto& x) { return x < now; });
             if (it != candidates.end() && std::get<1>(*it) != neighbour) {
                 if (candidates.size() == beam_size) {
                     candidates.pop_back();
                 }
                 uid = std::min(uid, it - candidates.begin() - size_t(1));
-                candidates.insert(it, {dist, neighbour, false});
-                ++total_candidates;
-            } else if (candidates.size() < beam_size){
-                candidates.push_back({dist, neighbour, false});
-                ++total_candidates;
+                candidates.insert(it, now);
+            } else if (candidates.size() < beam_size) {
+                candidates.push_back(now);
             }
         }
     }
@@ -133,7 +128,6 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         });
 
     // spdlog::debug("beam search ends");
-    Timer::end("beam_search");
 
     // spdlog::debug("beam search total candidates {}, time cost {}",
     // total_candidates, Timer::read("beam_search"));
