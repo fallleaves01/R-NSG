@@ -4,6 +4,8 @@
 #include <faiss/IndexNNDescent.h>
 #include <Core/Searcher.hpp>
 #include <Graph/GraphIndex.hpp>
+#include <Utils/Recorder.hpp>
+#include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 
 namespace TDFANN {
@@ -12,8 +14,8 @@ template <typename T>
 class Builder {
    public:
     Builder(const Vector::VectorList<T>& data) : vector_list(data) {};
-    Graph::GraphIndex<std::monostate> nn_descent(size_t k) const;
-    Graph::TDGraphIndexBase build(size_t k) const;
+    Graph::GraphIndex<std::monostate> nn_descent(size_t k, bool verbose = false) const;
+    Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng, size_t d) const;
 
    private:
     std::vector<std::pair<T, size_t>> prune(
@@ -26,14 +28,7 @@ class Builder {
 // Implement of builder functions
 
 template <typename T>
-Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k) const {
-    std::ifstream fin("knng.in");
-    if (fin.good()) {
-        Graph::GraphIndex<std::monostate> graph(0);
-        graph.load(fin);
-        return graph;
-    }
-    fin.close();
+Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k, bool verbose) const {
     Graph::GraphIndex<std::monostate> graph(vector_list.size());
     std::vector<T> data(vector_list.size() * vector_list.dim());
     for (size_t i = 0; i < vector_list.size(); i++) {
@@ -42,80 +37,80 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k) const {
     spdlog::info("start KNN train with size {}, dim {}", vector_list.size(),
                  vector_list.dim());
     faiss::IndexNNDescentFlat index(vector_list.dim(), k);
-    index.verbose = true;
+    index.verbose = verbose;
     index.add(vector_list.size(), data.data());
-    spdlog::info("KNN final trained = {}, graph size = {}", index.is_trained,
-                 index.nndescent.graph.size());
     for (size_t i = 0; i < vector_list.size(); i++) {
         graph.add_neighbours(
             i, index.nndescent.final_graph | std::views::drop(i * k) |
-                   std::views::take(k) | std::views::transform([&](size_t id) {
-                       return Graph::GraphIndex<std::monostate>::Node{id, {}};
-                   }));
+                   std::views::take(k) |
+                   std::views::transform([&](size_t id) { return id; }));
     }
-    std::ofstream fout("knng.in");
-    graph.save(fout);
+    spdlog::info("KNN train finished.");
     return graph;
 }
 
 template <typename T>
-Graph::TDGraphIndexBase Builder<T>::build(size_t k) const {
+Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
+                                          size_t d) const {
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
-    Graph::GraphIndex<size_t> left(vector_list.size()),
-        right(vector_list.size());
-    auto knng = nn_descent(k);
-    auto build = [&](Graph::GraphIndex<size_t>& g, auto&& id, auto&& cmp) {
-        spdlog::info("start building one side");
+    Graph::TDGraphIndexBase g(vector_list.size());
+    size_t n = vector_list.size(), total_degree = 0;
+    const size_t step = (vector_list.size() + 99) / 100;
+    for (size_t i = 0; i < vector_list.size(); i++) {
+        bool output_tag = (i + 1) % step == 0 || i == vector_list.size();
 
-        Searcher searcher(vector_list, knng);
-        std::vector<std::vector<std::pair<T, size_t>>> candidates(
-            vector_list.size());
-        size_t lst = -1;
-        const size_t block = std::max(size_t(1), vector_list.size() / 100);
-        Timer::start("build");
-        for (auto i : id) {
-            if (lst != size_t(-1)) {
-                candidates[i] =
-                    searcher.beam_search(i, vector_list.size(), i - 1, 200);
-                for (auto [dis, id] : candidates[i]) {
-                    candidates[id].push_back({dis, i});
-                }
-                if (i % block == 0) {
-                    Timer::end("build");
-                    spdlog::info("building rate {:.2f}%",
-                                 i * 100.0 / vector_list.size());
-                    spdlog::info("searching time rate {:.2f}%",
-                                 Timer::read("beam_search") * 100.0f /
-                                     Timer::read("build"));
-                    Timer::start("build");
-                }
-            }
-            lst = i;
-        }
-        size_t total_size = 0;
-        for (size_t i = 0; i < vector_list.size(); i++) {
-            std::ranges::sort(candidates[i], cmp);
-            total_size += candidates[i].size();
-            candidates[i] = prune(candidates[i]);
-            auto r = candidates[i] | std::views::transform([](const auto& x) {
-                         return Graph::GraphIndex<size_t>::Node{x.second,
-                                                                size_t(-1)};
-                     });
-            g.add_neighbours(i, r);
-            if (i % block == 0) {
-                spdlog::info("pruning rate {:.2f}%",
-                             i * 100.0 / vector_list.size());
+        std::vector<std::pair<T, size_t>> c_left, c_right;
+        for (const auto& neighbour : knng.get_neighbours_id(i)) {
+            if (neighbour < i) {
+                c_left.push_back({vector_list.dist(i, neighbour), neighbour});
+            } else {
+                c_right.push_back({vector_list.dist(i, neighbour), neighbour});
             }
         }
-        spdlog::debug("candidate total size {}", total_size);
-    };
-    build(left, std::views::iota(0u, vector_list.size()),
-          [](auto a, auto b) { return a.second > b.second; });
-    build(right, std::views::iota(0u, vector_list.size()) | std::views::reverse,
-          [](auto a, auto b) { return a.second < b.second; });
+        for (size_t j = i - std::min(i, d); j < i; j++) {
+            c_left.push_back({vector_list.dist(i, j), j});
+        }
+        for (size_t j = i + 1; j < std::min(i + d, n); j++) {
+            c_right.push_back({vector_list.dist(i, j), j});
+        }
+
+        std::ranges::sort(
+            c_left, [&](auto&& x, auto&& y) { return x.second > y.second; });
+        std::ranges::sort(
+            c_right, [&](auto&& x, auto&& y) { return x.second < y.second; });
+
+        c_left.erase(std::begin(std::ranges::unique(c_left)), c_left.end());
+        c_right.erase(std::begin(std::ranges::unique(c_right)), c_right.end());
+
+        size_t candidate_size = 0;
+        if (output_tag) {
+            Timer::start("prune");
+            candidate_size = c_left.size() + c_right.size();
+        }
+
+        c_left = prune(c_left);
+        c_right = prune(c_right);
+
+        total_degree += c_left.size() + c_right.size();
+
+        if (output_tag) {
+            auto t = Timer::end("prune");
+            spdlog::info(
+                "Build progress: {}/{} ({:.2f}%), prune time cost {}, "
+                "candidate size {} -> {}",
+                i + 1, vector_list.size(), (i + 1) * 100.0 / vector_list.size(),
+                t, candidate_size, c_left.size() + c_right.size());
+        }
+
+        g.add_neighbours(
+            i, std::array{c_left, c_right} | std::views::join |
+                   std::views::transform([&](auto& x) { return x.second; }));
+    }
+    spdlog::info("average degree {:.2f}",
+                 total_degree * 1.0 / vector_list.size());
     spdlog::info("Build finished.");
-    return Graph::TDGraphIndexBase(std::move(left), std::move(right));
+    return g;
 }
 
 template <typename T>

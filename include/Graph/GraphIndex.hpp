@@ -1,6 +1,8 @@
 #pragma once
-#include <IO/TypeIO.hpp>
+
 #include <PCH.hpp>
+
+#include <IO/TypeIO.hpp>
 
 namespace TDFANN {
 
@@ -12,7 +14,16 @@ class GraphIndex {
     struct Node {
         size_t to;
         [[no_unique_address]] Data data;
+        Node() : to(-1) {}
+        Node(size_t _to) : to(_to) {}
+        Node(size_t _to, Data &&_data) : to(_to), data(std::forward(_data)) {}
     };
+    GraphIndex(std::string filename) {
+        std::ifstream fin(filename);
+        if (!fin.good() || !load(fin)) {
+            throw std::runtime_error("Failed to load graph from " + filename);
+        }
+    }
     GraphIndex(size_t node_cnt) : edges(node_cnt) {}
     size_t add_node() {
         edges.emplace_back();
@@ -39,27 +50,18 @@ class GraphIndex {
     std::vector<std::vector<Node>> edges;
 };
 
-class TDGraphIndexBase {
+class TDGraphIndexBase : public GraphIndex<size_t> {
    public:
-    TDGraphIndexBase(GraphIndex<size_t>&& left, GraphIndex<size_t>&& right)
-        : left(std::move(left)), right(std::move(right)) {}
-    bool save(std::ofstream& fout) const {
-        return left.save(fout) && right.save(fout);
-    }
-    bool load(std::ifstream& fin) {
-        return left.load(fin) && right.load(fin);
-    }
+    using GraphIndex<size_t>::GraphIndex;
 
     class TDGraphIndex {
        public:
         TDGraphIndex(const TDGraphIndexBase& _base, size_t _l, size_t _r)
             : base(_base), l(_l), r(_r) {}
         auto get_neighbours(size_t node) const {
-            auto& id_l = base.left.get_neighbours(node);
-            auto& id_r = base.right.get_neighbours(node);
-            return std::array{id_l, id_r} | std::views::join |
-                   std::views::filter(
-                       [this](auto x) { return l <= x.to && x.to <= r; });
+            return base.get_neighbours(node) | std::views::filter([&](auto &x) {
+                return x.to >= l && x.to < r;
+            });
         }
         auto get_neighbours_id(size_t node) const {
             return get_neighbours(node) |
@@ -73,9 +75,6 @@ class TDGraphIndexBase {
     TDGraphIndex operator()(size_t _l, size_t _r) const {
         return TDGraphIndex(*this, _l, _r);
     }
-
-   private:
-    GraphIndex<size_t> left, right;
 };
 
 }  // namespace Graph
