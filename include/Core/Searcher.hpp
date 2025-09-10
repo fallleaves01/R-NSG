@@ -6,6 +6,7 @@
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 #include <Vector/VectorType.hpp>
+#include "Utils/Recorder.hpp"
 
 namespace TDFANN {
 
@@ -85,32 +86,37 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
                       std::is_convertible_v<GoalId, Vector::VectorType<T>>,
                   "GoalId must be convertible to size_t or a vector-like type");
 
-    // spdlog::debug("start beam search");
+    struct Node {
+        T dis;
+        bool visited;
+        size_t id;
+        bool operator<(const Node& other) {
+            return std::pair{dis, id} < std::pair{other.dis, other.id};
+        }
+    };
 
-    std::vector<std::tuple<T, size_t, bool>> candidates;
-    candidates.push_back({dataset.dist(start_node, goal), start_node, false});
+    std::vector<Node> candidates;
+    candidates.reserve(beam_size + 1);
+    candidates.push_back({dataset.dist(start_node, goal), false, start_node});
 
-    // std::set<size_t> visited;
-    // visited.insert(start_node);
     for (size_t uid = 0; uid < beam_size; uid++) {
-        if (std::get<2>(candidates[uid])) {
+        if (candidates[uid].visited) {
             continue;  // 已处理过，跳过
         }
-        size_t current_node = std::get<1>(candidates[uid]);
-        std::get<2>(candidates[uid]) = true;  // 标记为已处理
+        size_t current_node = candidates[uid].id;
+        candidates[uid].visited = true;  // 标记为已处理
 
         // 获取当前节点的邻居
-        auto neighbours = graph.get_neighbours_id(current_node);
-        for (const auto& neighbour : neighbours) {
-            // if (visited.count(neighbour)) {
-            //     continue;  // 已访问过，跳过
-            // }
-            // visited.insert(neighbour);
+        for (const auto& neighbour : graph.get_neighbours_id(current_node)) {
             T dist = dataset.dist(neighbour, goal);
-            auto now = std::tuple{dist, neighbour, false};
-            auto it = std::ranges::partition_point(
-                candidates, [&](const auto& x) { return x < now; });
-            if (it != candidates.end() && std::get<1>(*it) != neighbour) {
+            auto now = Node{dist, false, neighbour};
+            auto it = std::lower_bound(candidates.begin(), candidates.end(), now);
+            // if (it != candidates.end() && it->id == neighbour) {
+            //     Recorder<size_t>::add("repeat_node", 1);
+            // } else {
+            //     Recorder<size_t>::add("new_node", 1);
+            // }
+            if (it != candidates.end() && it->id != neighbour) {
                 if (candidates.size() == beam_size) {
                     candidates.pop_back();
                 }
@@ -122,11 +128,11 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         }
     }
 
-    return Utils::to_vector(
-        candidates | std::views::take(std::min(k, candidates.size())) |
-        std::views::transform([](const auto& c) {
-            return std::pair{std::get<0>(c), std::get<1>(c)};  // 提取节点索引
-        }));
+    return Utils::to_vector(candidates |
+                            std::views::take(std::min(k, candidates.size())) |
+                            std::views::transform([](const auto& c) {
+                                return std::pair{c.dis, c.id};  // 提取节点索引
+                            }));
 }
 
 }  // namespace TDFANN
