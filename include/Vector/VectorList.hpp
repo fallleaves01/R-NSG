@@ -70,19 +70,25 @@ void VectorList<T>::load(const std::string& filename) {
     unsigned tmp, idx = 0;
     spdlog::info("Vector dimension: {}, size: {}", dimension, n);
 
+    T *data = vectors.data();
     while (fin.read(reinterpret_cast<char*>(&tmp), sizeof(unsigned))) {
         // spdlog::info("Reading vector {}/{} with dim = {}", idx + 1, n, tmp);
-        if (!fin.read(reinterpret_cast<char*>(vectors.row(idx++).data()),
+        if (!fin.read(reinterpret_cast<char*>(data + idx * dimension),
                       dimension * sizeof(T))) {
             spdlog::error("Failed to read vector data from file");
             throw std::runtime_error("Failed to read vector data from file");
         }
+        idx++;
         if (tmp != dimension) {
             spdlog::error("Inconsistent vector dimensions in file: {}",
                           filename);
             throw std::runtime_error("Inconsistent vector dimensions in file");
         }
     }
+    for (size_t i = 0; i < dimension; i++) {
+        std::cout << vectors.row(0)[i] << " ";
+    }
+    std::cout << std::endl;
     init_sqrs();
 }
 
