@@ -7,7 +7,7 @@ add_rules("plugin.compile_commands.autoupdate", {
 })
 
 add_repositories("local repo")
-add_requires("cli11", "spdlog", "eigen", "openmp", "openblas")
+add_requires("cli11", "spdlog", "eigen", "openmp", "openblas", "parallel-hashmap")
 add_requires("faiss-cpu")
 
 target("TDFANN")
@@ -16,7 +16,7 @@ target("TDFANN")
     add_links("stdc++")
     add_syslinks("pthread")
 
-    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas")
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap")
     add_files("src/main.cpp")
 
     set_pcxxheader("include/PCH.hpp")  -- 设置预编译头文件
@@ -24,6 +24,12 @@ target("TDFANN")
     add_cxxflags("-Wno-ignored-optimization-argument") -- 忽略 -Wno-gnu-line-marker 警告
     -- add_cxxflags("-H")  -- 输出头文件使用情况
     add_cxxflags("-Winvalid-pch") -- 检测PCH有效性
+    
+    -- if is_mode("release") then
+    --     set_symbols("debug")   -- 在 Release 模式下也生成调试符号
+    --     set_strip("none")      -- 明确禁止剥离符号
+    --     -- set_optimize("fastest") -- 通常 Release 模式需要优化，保留这行
+    -- end
 
     add_includedirs("include")
 
