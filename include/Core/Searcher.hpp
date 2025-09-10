@@ -1,12 +1,12 @@
 #pragma once
 #include <PCH.hpp>
 
+#include <parallel_hashmap/phmap.h>
 #include <Graph/Concepts.hpp>
 #include <Utils/ExFunc.hpp>
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 #include <Vector/VectorType.hpp>
-#include "Utils/Recorder.hpp"
 
 namespace TDFANN {
 
@@ -85,48 +85,61 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     static_assert(std::is_convertible_v<GoalId, size_t> ||
                       std::is_convertible_v<GoalId, Vector::VectorType<T>>,
                   "GoalId must be convertible to size_t or a vector-like type");
+    // static std::vector<char> vis;
+    // if (vis.size() < dataset.size()) {
+    //     vis.resize(dataset.size(), false);
+    // }
+    phmap::flat_hash_map<size_t, T> vis_dis;
 
     struct Node {
         T dis;
         bool visited;
         size_t id;
-        bool operator<(const Node& other) {
-            return std::pair{dis, id} < std::pair{other.dis, other.id};
-        }
+        bool operator<(const Node& other) { return dis < other.dis; }
     };
 
     std::vector<Node> candidates;
+    // std::vector<std::pair<T, size_t>> visited_nodes;
+    // visited_nodes.reserve(beam_size * 10);
     candidates.reserve(beam_size + 1);
     candidates.push_back({dataset.dist(start_node, goal), false, start_node});
 
     for (size_t uid = 0; uid < beam_size; uid++) {
-        if (candidates[uid].visited) {
+        if (candidates[uid].visited) [[unlikely]] {
             continue;  // 已处理过，跳过
         }
         size_t current_node = candidates[uid].id;
         candidates[uid].visited = true;  // 标记为已处理
 
         // 获取当前节点的邻居
-        for (const auto& neighbour : graph.get_neighbours_id(current_node)) {
-            T dist = dataset.dist(neighbour, goal);
+        auto neighbours = Utils::to_vector(
+            graph.get_neighbours_id(current_node) |
+            std::views::filter([&](auto x) { return !vis_dis.contains(x); }));
+        std::vector<T> dists = dataset.dist_all(goal, neighbours);
+        size_t dist_id = 0;
+        for (const auto& neighbour : neighbours) {
+            T dist = dists[dist_id++];
             auto now = Node{dist, false, neighbour};
-            auto it = std::lower_bound(candidates.begin(), candidates.end(), now);
-            // if (it != candidates.end() && it->id == neighbour) {
-            //     Recorder<size_t>::add("repeat_node", 1);
-            // } else {
-            //     Recorder<size_t>::add("new_node", 1);
-            // }
-            if (it != candidates.end() && it->id != neighbour) {
+            if (dist >= candidates.back().dis) [[likely]] {
+                if (candidates.size() < beam_size) {
+                    candidates.push_back(now);
+                    vis_dis.insert({neighbour, dist});
+                }
+            } else {
+                auto it =
+                    std::lower_bound(candidates.begin(), candidates.end(), now);
                 if (candidates.size() == beam_size) {
                     candidates.pop_back();
                 }
                 uid = std::min(uid, it - candidates.begin() - size_t(1));
                 candidates.insert(it, now);
-            } else if (candidates.size() < beam_size) {
-                candidates.push_back(now);
+                vis_dis.insert({neighbour, dist});
             }
         }
     }
+    // for (auto [_, id] : visited_nodes) {
+    //     vis[id] = false;
+    // }
 
     return Utils::to_vector(candidates |
                             std::views::take(std::min(k, candidates.size())) |

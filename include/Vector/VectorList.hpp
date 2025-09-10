@@ -22,6 +22,8 @@ class VectorList {
     T dist2(size_t source, const Op& goal) const;
     template <typename Op>
     T dist(size_t source, const Op& goal) const;
+    template <typename Op, std::ranges::range R_op>
+    std::vector<T> dist_all(const Op& source, const R_op& goal) const;
 
     // struct operations
     const VectorType<T>& operator[](size_t index) const {
@@ -136,6 +138,35 @@ T VectorList<T>::dist(size_t source, const Op& goal) const {
                   "Op must be convertible to size_t or a vector-like type");
 
     return dist2(source, goal);
+}
+
+template <typename T>
+template <typename Op, std::ranges::range R_op>
+std::vector<T> VectorList<T>::dist_all(const Op& source,
+                                       const R_op& goal) const {
+    using Item = decltype(*std::ranges::begin(goal));
+    static_assert(std::is_convertible_v<Op, size_t> ||
+                      std::is_convertible_v<Op, VectorType<T>>,
+                  "Op must be convertible to size_t or a vector-like type");
+
+    static_assert(std::is_convertible_v<Item, size_t> ||
+                      std::is_convertible_v<Item, VectorType<T>>,
+                  "Item must be convertible to size_t or a vector-like type");
+
+    std::vector<T> result;
+    result.reserve(goal.size());
+    if constexpr (std::is_convertible_v<Op, size_t> ||
+                  std::is_convertible_v<Item, VectorType<T>>) {
+        for (const auto& g : goal) {
+            result.push_back(dist(source, g));
+        }
+    } else {
+        T now_2 = source.squaredNorm();
+        for (const auto& g : goal) {
+            result.push_back(now_2 + sqrs[g] - 2 * source.dot(vectors[g]));
+        }
+    }
+    return result;
 }
 
 }  // namespace Vector
