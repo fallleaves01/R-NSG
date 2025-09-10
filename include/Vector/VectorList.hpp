@@ -25,8 +25,8 @@ class VectorList {
     std::vector<T> dist_all(const Op& source, const R_op& goal) const;
 
     // struct operations
-    auto operator[](size_t index) const { return vectors.row(index); }
-    size_t size() const { return vectors.rows(); }
+    auto operator[](size_t index) const { return vectors.col(index); }
+    size_t size() const { return vectors.cols(); }
     size_t dim() const { return dimension; }
 
    private:
@@ -66,7 +66,7 @@ void VectorList<T>::load(const std::string& filename) {
     size_t file_size = ss;
     unsigned n = file_size / (dimension + 1) / sizeof(T);
     fin.seekg(0, std::ios::beg);
-    vectors.resize(n, dimension);
+    vectors.resize(dimension, n);
     unsigned tmp, idx = 0;
     spdlog::info("Vector dimension: {}, size: {}", dimension, n);
 
@@ -86,7 +86,7 @@ void VectorList<T>::load(const std::string& filename) {
         }
     }
     for (size_t i = 0; i < dimension; i++) {
-        std::cout << vectors.row(0)[i] << " ";
+        std::cout << vectors.col(0)[i] << " ";
     }
     std::cout << std::endl;
     init_sqrs();
@@ -97,7 +97,7 @@ template <typename T>
 void VectorList<T>::init_sqrs() {
     sqrs.resize(size());
     for (size_t i = 0; i < size(); ++i) {
-        sqrs[i] = vectors.row(i).squaredNorm();
+        sqrs[i] = vectors.col(i).squaredNorm();
     }
 }
 
@@ -110,9 +110,9 @@ T VectorList<T>::dist2(size_t source, const Op& goal) const {
 
     if constexpr (std::is_convertible_v<Op, size_t>) {
         return sqrs[source] + sqrs[goal] -
-               2 * vectors.row(source).dot(vectors.row(goal));
+               2 * vectors.col(source).dot(vectors.col(goal));
     } else {
-        return (vectors.row(source) - goal).squaredNorm();
+        return (vectors.col(source) - goal).squaredNorm();
     }
 }
 
@@ -155,7 +155,7 @@ std::vector<T> VectorList<T>::dist_all(const Op& source,
     } else {
         T now_2 = source.squaredNorm();
         for (const auto& g : goal) {
-            result.push_back(now_2 + sqrs[g] - 2 * source.dot(vectors.row(g)));
+            result.push_back(now_2 + sqrs[g] - 2 * source.dot(vectors.col(g)));
         }
     }
     return result;

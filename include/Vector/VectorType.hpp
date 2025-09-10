@@ -20,7 +20,7 @@ template <typename T>
 using VectorListType = typename VectorListTypeImpl<T>::type;
 
 template <typename T>
-using VectorType = decltype(std::declval<const VectorListType<T>>().row(std::declval<size_t>()));
+using VectorType = decltype(std::declval<const VectorListType<T>>().col(std::declval<size_t>()));
 
 }  // namespace Vector
 
