@@ -85,10 +85,6 @@ void VectorList<T>::load(const std::string& filename) {
             throw std::runtime_error("Inconsistent vector dimensions in file");
         }
     }
-    for (size_t i = 0; i < dimension; i++) {
-        std::cout << vectors.col(0)[i] << " ";
-    }
-    std::cout << std::endl;
     init_sqrs();
 }
 
