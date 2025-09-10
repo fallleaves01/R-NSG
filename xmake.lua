@@ -33,30 +33,6 @@ target("TDFANN")
         set_policy("build.optimization.lto", true)
     end
 
-
-target("knng_builder")
-    set_kind("binary")
-    set_languages("c++20")
-    add_links("stdc++")
-    add_syslinks("pthread")
-
-    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas")
-    add_files("src/knng_builder.cpp")
-
-    set_pcxxheader("include/PCH.hpp")  -- 设置预编译头文件
-    add_cxxflags("-Wno-unknown-pragmas")      -- 忽略 #pragma system_header 警告
-    add_cxxflags("-Wno-ignored-optimization-argument") -- 忽略 -Wno-gnu-line-marker 警告
-    -- add_cxxflags("-H")  -- 输出头文件使用情况
-    add_cxxflags("-Winvalid-pch") -- 检测PCH有效性
-
-    add_includedirs("include")
-
-    set_warnings("all", "extra") -- 添加警告选项
-
-    if is_mode("release") then
-        set_policy("build.optimization.lto", true)
-    end
-
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
 --

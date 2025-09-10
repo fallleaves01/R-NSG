@@ -2,6 +2,7 @@
 #include <PCH.hpp>
 
 #include <Graph/Concepts.hpp>
+#include <Utils/ExFunc.hpp>
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 #include <Vector/VectorType.hpp>
@@ -121,17 +122,11 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         }
     }
 
-    auto r =
-        candidates | std::views::take(k) |
+    return Utils::to_vector(
+        candidates | std::views::take(std::min(k, candidates.size())) |
         std::views::transform([](const auto& c) {
             return std::pair{std::get<0>(c), std::get<1>(c)};  // 提取节点索引
-        });
-
-    // spdlog::debug("beam search ends");
-
-    // spdlog::debug("beam search total candidates {}, time cost {}",
-    // total_candidates, Timer::read("beam_search"));
-    return std::vector(r.begin(), r.end());
+        }));
 }
 
 }  // namespace TDFANN
