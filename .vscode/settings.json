@@ -1,5 +1,11 @@
 {
     "clangd.arguments": [
         "--compile-commands-dir=.vscode"
-    ]
+    ],
+    "C_Cpp.default.compileCommands": [
+        "${workspaceFolder}/.vscode/compile_commands.json"
+    ],
+    "files.associations": {
+        "ranges": "cpp"
+    }
 }
