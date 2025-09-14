@@ -1,5 +1,5 @@
 #pragma once
-#include <Vector/VectorType.hpp>
+#include <Vector/Concepts.hpp>
 
 namespace TDFANN {
 
@@ -101,7 +101,7 @@ template <typename T>
 template <typename Op>
 T VectorList<T>::dist2(size_t source, const Op& goal) const {
     static_assert(std::is_convertible_v<Op, size_t> ||
-                      std::is_convertible_v<Op, VectorType<T>>,
+                      DotProductWithVectorType<Op, T>,
                   "Op must be convertible to size_t or a vector-like type");
 
     if constexpr (std::is_convertible_v<Op, size_t>) {
@@ -116,7 +116,7 @@ template <typename T>
 template <typename Op>
 T VectorList<T>::dist(size_t source, const Op& goal) const {
     static_assert(std::is_convertible_v<Op, size_t> ||
-                      std::is_convertible_v<Op, VectorType<T>>,
+                      DotProductWithVectorType<Op, T>,
                   "Op must be convertible to size_t or a vector-like type");
 
     return dist2(source, goal);

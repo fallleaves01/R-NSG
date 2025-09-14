@@ -31,6 +31,26 @@ concept indexable = requires(T container, size_t index) {
 template <typename T>
 concept IsFloat = std::is_same_v<T, float> || std::is_same_v<T, double>;
 
+template <typename T>
+struct VectorListTypeImpl {
+    static_assert(IsFloat<T>,
+                  "VectorType can only be used with float or double types");
+    using type = std::conditional_t<std::is_same_v<T, float>,
+                                    typename Eigen::MatrixXf,
+                                    typename Eigen::MatrixXd>;
+};
+
+template <typename T>
+using VectorListType = typename VectorListTypeImpl<T>::type;
+
+template <typename T>
+using VectorType = decltype(std::declval<const VectorListType<T>>().col(std::declval<size_t>()));
+
+template<typename Op, typename T>
+concept DotProductWithVectorType = requires(const Op& op, const VectorType<T>& vec) {
+    { vec.dot(op) } -> std::same_as<T>;
+};
+
 }  // namespace VectorLib
 
 }  // namespace TDFANN
