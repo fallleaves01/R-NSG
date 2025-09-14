@@ -55,9 +55,10 @@ template <typename GoalId>
 std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
     const GoalId& goal,
     size_t k) {
-    static_assert(std::is_convertible_v<GoalId, size_t> ||
-                      std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
-                  "GoalId must be convertible to size_t or a vector-like type");
+    static_assert(
+        std::is_convertible_v<GoalId, size_t> ||
+            std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
+        "GoalId must be convertible to size_t or a vector-like type");
 
     std::priority_queue<std::pair<T, size_t>> heap;
     for (size_t i = 0; i < dataset.size(); i++) {
@@ -82,9 +83,10 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     size_t k,
     size_t start_node,
     size_t beam_size) {
-    static_assert(std::is_convertible_v<GoalId, size_t> ||
-                      std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
-                  "GoalId must be convertible to size_t or a vector-like type");
+    static_assert(
+        std::is_convertible_v<GoalId, size_t> ||
+            std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
+        "GoalId must be convertible to size_t or a vector-like type");
     // static std::vector<char> vis;
     // if (vis.size() < dataset.size()) {
     //     vis.resize(dataset.size(), false);
@@ -95,7 +97,6 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         T dis;
         bool visited;
         size_t id;
-        bool operator<(const Node& other) { return dis < other.dis; }
     };
 
     std::vector<Node> candidates;
@@ -119,20 +120,20 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         size_t dist_id = 0;
         for (const auto& neighbour : neighbours) {
             T dist = dists[dist_id++];
-            auto now = Node{dist, false, neighbour};
             if (dist >= candidates.back().dis) [[likely]] {
                 if (candidates.size() < beam_size) {
-                    candidates.push_back(now);
+                    candidates.push_back({dist, false, neighbour});
                     vis_dis.insert({neighbour, dist});
                 }
             } else {
-                auto it =
-                    std::lower_bound(candidates.begin(), candidates.end(), now);
+                auto it = std::partition_point(
+                    candidates.begin(), candidates.end(),
+                    [&](const auto& a) { return a.dis < dist; });
                 if (candidates.size() == beam_size) {
                     candidates.pop_back();
                 }
                 uid = std::min(uid, it - candidates.begin() - size_t(1));
-                candidates.insert(it, now);
+                candidates.insert(it, {dist, false, neighbour});
                 vis_dis.insert({neighbour, dist});
             }
         }
