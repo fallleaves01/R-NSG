@@ -6,7 +6,6 @@
 #include <Utils/ExFunc.hpp>
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
-#include <Vector/VectorType.hpp>
 
 namespace TDFANN {
 
@@ -87,10 +86,6 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         std::is_convertible_v<GoalId, size_t> ||
             std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
         "GoalId must be convertible to size_t or a vector-like type");
-    // static std::vector<char> vis;
-    // if (vis.size() < dataset.size()) {
-    //     vis.resize(dataset.size(), false);
-    // }
     phmap::flat_hash_map<size_t, T> vis_dis;
 
     struct Node {
@@ -99,11 +94,8 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         size_t id;
     };
 
-    std::vector<Node> candidates;
-    // std::vector<std::pair<T, size_t>> visited_nodes;
-    // visited_nodes.reserve(beam_size * 10);
-    candidates.reserve(beam_size + 1);
-    candidates.push_back({dataset.dist(start_node, goal), false, start_node});
+    std::vector<Node> candidates(beam_size, {T(1e100), true, size_t(-1)});
+    candidates[0] = {dataset.dist(start_node, goal), false, start_node};
 
     for (size_t uid = 0; uid < beam_size; uid++) {
         if (candidates[uid].visited) [[unlikely]] {
@@ -120,27 +112,17 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         size_t dist_id = 0;
         for (const auto& neighbour : neighbours) {
             T dist = dists[dist_id++];
-            if (dist >= candidates.back().dis) [[likely]] {
-                if (candidates.size() < beam_size) {
-                    candidates.push_back({dist, false, neighbour});
-                    vis_dis.insert({neighbour, dist});
-                }
-            } else {
+            if (dist < candidates.back().dis) [[unlikely]] {
+                candidates.pop_back();
                 auto it = std::partition_point(
                     candidates.begin(), candidates.end(),
                     [&](const auto& a) { return a.dis < dist; });
-                if (candidates.size() == beam_size) {
-                    candidates.pop_back();
-                }
                 uid = std::min(uid, it - candidates.begin() - size_t(1));
                 candidates.insert(it, {dist, false, neighbour});
                 vis_dis.insert({neighbour, dist});
             }
         }
     }
-    // for (auto [_, id] : visited_nodes) {
-    //     vis[id] = false;
-    // }
 
     return Utils::to_vector(candidates |
                             std::views::take(std::min(k, candidates.size())) |
