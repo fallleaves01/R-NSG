@@ -9,6 +9,8 @@ add_rules("plugin.compile_commands.autoupdate", {
 add_repositories("local repo")
 add_requires("cli11", "spdlog", "eigen", "openmp", "openblas", "parallel-hashmap")
 add_requires("faiss-cpu")
+add_requires("mimalloc", {system = false, configs = {shared = false}})
+-- add_requires("mkl", {system = true})
 
 target("TDFANN")
     set_kind("binary")
@@ -16,8 +18,12 @@ target("TDFANN")
     add_links("stdc++")
     add_syslinks("pthread")
 
-    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap")
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc")
+    -- add_packages("mkl")
+    -- add_ldflags("-lm", "-ldl")
+    -- add_links("mkl_intel_lp64", "mkl_sequential", "mkl_core")
     add_files("src/main.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")  -- 让mimalloc覆盖全局malloc
 
     set_pcxxheader("include/PCH.hpp")  -- 设置预编译头文件
     add_cxxflags("-Wno-unknown-pragmas")      -- 忽略 #pragma system_header 警告
@@ -37,6 +43,8 @@ target("TDFANN")
 
     if is_mode("release") then
         set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+        -- set_strip("none")
     end
 
 --
