@@ -34,10 +34,12 @@ class Searcher {
      * @return return vector{{distance, index}}
      */
     template <typename GoalId, IndexOrList StartNode>
-    std::vector<std::pair<T, size_t>> beam_search(const GoalId& goal,
-                                                  size_t k,
-                                                  StartNode start_node,
-                                                  size_t beam_size);
+    std::vector<std::pair<T, size_t>> beam_search(
+        const GoalId& goal,
+        size_t k,
+        StartNode start_node,
+        size_t beam_size,
+        std::vector<std::pair<T, size_t>>* candidates_ptr = nullptr);
 
    private:
     const Vector::VectorList<T>& dataset;
@@ -80,7 +82,8 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     const GoalId& goal,
     size_t k,
     StartNode start_node,
-    size_t beam_size) {
+    size_t beam_size,
+    std::vector<std::pair<T, size_t>>* candidates_ptr) {
     static_assert(IndexOrVector<GoalId, T>,
                   "GoalId must be convertible to size_t or a vector-like type");
 
@@ -94,12 +97,14 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
 
     std::vector<Node> candidates(beam_size, {T(1e100), true, size_t(-1)});
     if constexpr (std::convertible_to<StartNode, size_t>) {
-        candidates[0] = {dataset.dist(start_node, goal), false, size_t(start_node)};
+        candidates[0] = {dataset.dist(start_node, goal), false,
+                         size_t(start_node)};
     } else {
         size_t id = 0;
         for (auto it : start_node) {
             if (id >= beam_size) {
-                candidates.push_back({dataset.dist(it, goal), false, size_t(it)});
+                candidates.push_back(
+                    {dataset.dist(it, goal), false, size_t(it)});
             } else {
                 candidates[id++] = {dataset.dist(it, goal), false, size_t(it)};
             }
@@ -136,6 +141,14 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
                 candidates.insert(it, {dist, false, neighbour});
                 vis_dis.insert({neighbour, dist});
             }
+        }
+    }
+
+    if (candidates_ptr != nullptr) {
+        auto &c = *candidates_ptr;
+        c.resize(c.size() + vis_dis.size());
+        for (auto [i, d] : vis_dis) {
+            c.push_back({d, i});
         }
     }
 
