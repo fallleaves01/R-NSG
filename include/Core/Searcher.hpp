@@ -2,6 +2,7 @@
 #include <PCH.hpp>
 
 #include <parallel_hashmap/phmap.h>
+#include <Core/Concepts.hpp>
 #include <Graph/Concepts.hpp>
 #include <Utils/ExFunc.hpp>
 #include <Utils/Timer.hpp>
@@ -32,10 +33,10 @@ class Searcher {
      * @param beam_size searching beam size
      * @return return vector{{distance, index}}
      */
-    template <typename GoalId>
+    template <typename GoalId, IndexOrList StartNode>
     std::vector<std::pair<T, size_t>> beam_search(const GoalId& goal,
                                                   size_t k,
-                                                  size_t start_node,
+                                                  StartNode start_node,
                                                   size_t beam_size);
 
    private:
@@ -54,10 +55,8 @@ template <typename GoalId>
 std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
     const GoalId& goal,
     size_t k) {
-    static_assert(
-        std::is_convertible_v<GoalId, size_t> ||
-            Vector::DotProductWithVectorType<GoalId, T>,
-        "GoalId must be convertible to size_t or a vector-like type");
+    static_assert(IndexOrVector<GoalId, T>,
+                  "GoalId must be convertible to size_t or a vector-like type");
 
     std::priority_queue<std::pair<T, size_t>> heap;
     for (size_t i = 0; i < dataset.size(); i++) {
@@ -76,16 +75,15 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
 }
 
 template <typename T, Graph::GraphLike G>
-template <typename GoalId>
+template <typename GoalId, IndexOrList StartNode>
 std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     const GoalId& goal,
     size_t k,
-    size_t start_node,
+    StartNode start_node,
     size_t beam_size) {
-    static_assert(
-        std::is_convertible_v<GoalId, size_t> ||
-            Vector::DotProductWithVectorType<GoalId, T>,
-        "GoalId must be convertible to size_t or a vector-like type");
+    static_assert(IndexOrVector<GoalId, T>,
+                  "GoalId must be convertible to size_t or a vector-like type");
+
     phmap::flat_hash_map<size_t, T> vis_dis;
 
     struct Node {
@@ -95,7 +93,24 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     };
 
     std::vector<Node> candidates(beam_size, {T(1e100), true, size_t(-1)});
-    candidates[0] = {dataset.dist(start_node, goal), false, start_node};
+    if constexpr (std::convertible_to<StartNode, size_t>) {
+        candidates[0] = {dataset.dist(start_node, goal), false, size_t(start_node)};
+    } else {
+        size_t id = 0;
+        for (auto it : start_node) {
+            if (id >= beam_size) {
+                candidates.push_back({dataset.dist(it, goal), false, size_t(it)});
+            } else {
+                candidates[id++] = {dataset.dist(it, goal), false, size_t(it)};
+            }
+        }
+        std::ranges::sort(candidates, [](const auto& a, const auto& b) {
+            return a.dis < b.dis;
+        });
+        if (candidates.size() > beam_size) {
+            candidates.resize(beam_size);
+        }
+    }
 
     for (size_t uid = 0; uid < beam_size; uid++) {
         if (candidates[uid].visited) [[unlikely]] {
