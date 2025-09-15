@@ -146,7 +146,7 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
 
     if (candidates_ptr != nullptr) {
         auto &c = *candidates_ptr;
-        c.resize(c.size() + vis_dis.size());
+        c.reserve(c.size() + vis_dis.size());
         for (auto [i, d] : vis_dis) {
             c.push_back({d, i});
         }
