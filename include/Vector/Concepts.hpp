@@ -38,13 +38,16 @@ struct VectorListTypeImpl {
     using type = std::conditional_t<std::is_same_v<T, float>,
                                     typename Eigen::MatrixXf,
                                     typename Eigen::MatrixXd>;
+    using v_type = std::conditional_t<std::is_same_v<T, float>,
+                                     typename Eigen::VectorXf,
+                                     typename Eigen::VectorXd>;
 };
 
 template <typename T>
 using VectorListType = typename VectorListTypeImpl<T>::type;
 
 template <typename T>
-using VectorType = decltype(std::declval<const VectorListType<T>>().col(std::declval<size_t>()));
+using VectorType = typename VectorListTypeImpl<T>::v_type;
 
 template<typename Op, typename T>
 concept DotProductWithVectorType = requires(const Op& op, const VectorType<T>& vec) {
