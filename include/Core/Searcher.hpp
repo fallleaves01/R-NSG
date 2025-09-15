@@ -56,7 +56,7 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::linear_search(
     size_t k) {
     static_assert(
         std::is_convertible_v<GoalId, size_t> ||
-            std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
+            Vector::DotProductWithVectorType<GoalId, T>,
         "GoalId must be convertible to size_t or a vector-like type");
 
     std::priority_queue<std::pair<T, size_t>> heap;
@@ -84,7 +84,7 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     size_t beam_size) {
     static_assert(
         std::is_convertible_v<GoalId, size_t> ||
-            std::is_convertible_v<GoalId, const Vector::VectorType<T>>,
+            Vector::DotProductWithVectorType<GoalId, T>,
         "GoalId must be convertible to size_t or a vector-like type");
     phmap::flat_hash_map<size_t, T> vis_dis;
 

@@ -130,11 +130,11 @@ std::vector<T> VectorList<T>::dist_all(const Op& source,
     constexpr int O_id =
         std::is_convertible_v<Op, size_t>
             ? 1
-            : (std::is_convertible_v<Op, VectorType<T>> ? -1 : 0);
+            : (DotProductWithVectorType<Op, T> ? -1 : 0);
     constexpr int I_id =
         std::is_convertible_v<Item, size_t>
             ? 1
-            : (std::is_convertible_v<Item, VectorType<T>> ? -1 : 0);
+            : (DotProductWithVectorType<Item, T> ? -1 : 0);
     static_assert(O_id != 0,
                   "Op must be convertible to size_t or a vector-like type");
     static_assert(I_id != 0,
