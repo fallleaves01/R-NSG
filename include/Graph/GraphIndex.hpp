@@ -3,6 +3,7 @@
 #include <PCH.hpp>
 
 #include <IO/TypeIO.hpp>
+#include <Graph/Concepts.hpp>
 
 namespace TDFANN {
 
@@ -71,7 +72,7 @@ class TDGraphIndexBase : public GraphIndex<size_t> {
                    std::views::transform([](auto x) { return x.to; });
         }
         auto get_header() const {
-            return base.get_header(l) |
+            return base.get_header(r) |
                    std::views::filter([&](auto& x) { return x >= l && x < r; });
         }
 
