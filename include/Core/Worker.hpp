@@ -125,6 +125,28 @@ class Worker {
             return 1;
         }
         std::vector<size_t> ans(query_list.size() * k);
+
+        auto header = index.get_header(vector_list.size() - 1);
+        // header.clear();
+        // auto center = vector_list.mean();
+        // auto dist_center = vector_list.dist_all(
+        //     center, std::views::iota(0u, vector_list.size()));
+
+        // auto mn_dis = dist_center[0];
+        // header.push_back(0);
+        // for (size_t i = 0; i < query_list.size(); i++) {
+        //     if (dist_center[i] < mn_dis) {
+        //         mn_dis = dist_center[i];
+        //         header.clear();
+        //     }
+        //     if (dist_center[i] == mn_dis) {
+        //         header.push_back(i);
+        //     }
+        // }
+        // for (size_t i = 0; i < header.size(); i++) {
+        //     std::cout << header[i] << " ";
+        // }
+        // std::cout << std::endl;
         Timer::start("Query");
         if (brute) {
             for (size_t i = 0; i < query_list.size(); i++) {
@@ -141,7 +163,7 @@ class Worker {
         } else {
             for (size_t i = 0; i < query_list.size(); i++) {
                 auto result =
-                    searcher.beam_search(query_list[i], k, 0, beam_size);
+                    searcher.beam_search(query_list[i], k, header, beam_size);
                 std::ranges::copy(result | std::views::transform([](auto& p) {
                                       return p.second;
                                   }),
@@ -165,8 +187,8 @@ class Worker {
             IO::load(fin, answer);
             size_t correct = 0;
             for (size_t i = 0; i < query_list.size(); i++) {
-                auto answer_r = answer | std::views::drop(i * k) |
-                                std::views::take(k);
+                auto answer_r =
+                    answer | std::views::drop(i * k) | std::views::take(k);
                 for (size_t j = 0; j < k; j++) {
                     if (std::ranges::find(answer_r, ans[i * k + j]) !=
                         answer_r.end()) {
@@ -174,7 +196,8 @@ class Worker {
                     }
                 }
             }
-            spdlog::info("Recall: {:.4f}", (double)correct / (k * query_list.size()));
+            spdlog::info("Recall: {:.4f}",
+                         (double)correct / (k * query_list.size()));
         }
         IO::save(fout, ans);
         return 0;
