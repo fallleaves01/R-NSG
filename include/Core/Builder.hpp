@@ -19,12 +19,15 @@ class Builder {
     Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng, size_t d) const;
     Graph::TDGraphIndexBase build_routing(Graph::GraphLike auto&& knng,
                                           size_t d) const;
+    void init_header(Graph::TDGraphIndexBase&,
+                     const Vector::VectorType<T>&) const;
 
    private:
     bool check_valid(const std::pair<T, size_t>&,
                      const std::vector<std::pair<T, size_t>>&) const;
     std::vector<std::pair<T, size_t>> prune(
-        const std::vector<std::pair<T, size_t>>&) const;
+        const std::vector<std::pair<T, size_t>>&,
+        std::vector<size_t>* = nullptr) const;
     const Vector::VectorList<T>& vector_list;  // 向量列表
 };
 
@@ -56,11 +59,41 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k,
 }
 
 template <typename T>
+void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
+                             const Vector::VectorType<T>& center) const {
+    size_t n = vector_list.size(), step = (n + 99) / 100;
+    std::vector<std::pair<T, size_t>> pre_header;
+    for (size_t i = 0; i < n; i++) {
+        bool output_tag = (i + 1) % step == 0 || i == n;
+        pre_header.insert(pre_header.begin(), {vector_list.dist(i, center), i});
+        auto dnow = pre_header[0].first;
+        for (auto it = std::next(pre_header.begin()); it != pre_header.end();) {
+            if (it->first > dnow &&
+                it->first > vector_list.dist(it->second, i)) {
+                it = pre_header.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        // g.set_header(i, pre_header | std::views::transform(
+        //                                  [](auto& x) { return x.second; }));
+        g.append_header(std::array{i});
+        if (output_tag) {
+            spdlog::info("Header progress: {}/{} ({:.2f}%), cand = {}", i + 1,
+                         n, (i + 1) * 100.0 / n, pre_header.size());
+        }
+    }
+}
+
+template <typename T>
 Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
                                           size_t d) const {
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
     Graph::TDGraphIndexBase g(vector_list.size());
+    auto center = vector_list.mean();
+    init_header(g, center);
+
     size_t n = vector_list.size(), total_degree = 0;
     const size_t step = (vector_list.size() + 99) / 100;
     for (size_t i = 0; i < vector_list.size(); i++) {
@@ -102,11 +135,28 @@ Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
 
         if (output_tag) {
             auto t = Timer::end("prune");
+            auto sub_prune = [&](auto& c) {
+                std::vector<bool> tag(c.size());
+                int res = 0;
+                for (size_t i = 0; i < c.size(); i++) {
+                    for (size_t j = i + 1; j < c.size(); j++) {
+                        if (c[i].first > c[j].first &&
+                            c[i].first >
+                                vector_list.dist(c[i].second, c[j].second)) {
+                            tag[i] = true;
+                            break;
+                        }
+                    }
+                    res += !tag[i];
+                }
+                return res;
+            };
             spdlog::info(
                 "Build progress: {}/{} ({:.2f}%), prune time cost {}, "
-                "candidate size {} -> {}",
+                "candidate size {} -> {} -> {}",
                 i + 1, vector_list.size(), (i + 1) * 100.0 / vector_list.size(),
-                t, candidate_size, c_left.size() + c_right.size());
+                t, candidate_size, c_left.size() + c_right.size(),
+                sub_prune(c_left) + sub_prune(c_right));
         }
 
         g.add_neighbours(
@@ -125,7 +175,8 @@ bool Builder<T>::check_valid(
     const std::vector<std::pair<T, size_t>>& result) const {
     auto [d_now, i_now] = now;
     for (auto [d_lst, i_lst] : result) {
-        if ((d_now > d_lst && d_now > vector_list.dist(i_now, i_lst)) || i_lst == i_now) {
+        if ((d_now > d_lst && d_now > vector_list.dist(i_now, i_lst)) ||
+            i_lst == i_now) {
             return false;
         }
     }
@@ -142,39 +193,8 @@ Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&& knng,
     const size_t step = (n + 99) / 100;
 
     Graph::TDGraphIndexBase g(n);
-    Vector::VectorType<T> center(vector_list.dim());
-    for (size_t i = 0; i < vector_list.dim(); i++) {
-        center[i] = 0;
-    }
-    for (size_t i = 0; i < n; i++) {
-        center += vector_list[i];
-    }
-    center /= n;
-    for (size_t i = 0; i < vector_list.dim(); i++) {
-        std::cout << center[i] << " ";
-    }
-    std::cout << std::endl;
-
-    std::vector<std::pair<T, size_t>> pre_header;
-    for (size_t i = 0; i < n; i++) {
-        bool output_tag = (i + 1) % step == 0 || i == n;
-        pre_header.insert(pre_header.begin(), {vector_list.dist(i, center), i});
-        auto dnow = pre_header[0].first;
-        for (auto it = std::next(pre_header.begin()); it != pre_header.end();) {
-            if (it->first > dnow &&
-                it->first > vector_list.dist(it->second, i)) {
-                it = pre_header.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        g.set_header(i, pre_header | std::views::transform(
-                                         [](auto& x) { return x.second; }));
-        if (output_tag) {
-            spdlog::info("Header progress: {}/{} ({:.2f}%), cand = {}", i + 1,
-                         n, (i + 1) * 100.0 / n, pre_header.size());
-        }
-    }
+    auto center = vector_list.mean();
+    init_header(g, center);
 
     std::vector<std::vector<std::pair<T, size_t>>> c_left(n), c_right(n);
     for (size_t i = 0; i < vector_list.size(); i++) {
@@ -237,17 +257,6 @@ Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&& knng,
         for (auto [d, id] : routing_path[i]) {
             ++cnt[id];
         }
-        // for (auto [d, id] : routing_path[i]) {
-        //     if (i < id && check_valid({d, i}, c_left[id])) {
-        //         c_left[id].push_back({d, i});
-        //         g.add_neighbours(id, std::array{i});
-        //         ++add_total;
-        //     } else if (i > id && check_valid({d, i}, c_right[id])) {
-        //         c_right[id].push_back({d, i});
-        //         g.add_neighbours(id, std::array{i});
-        //         ++add_total;
-        //     }
-        // }
         if (output_tag) {
             spdlog::info(
                 "Routing progress: {}/{} ({:.2f}%), cand = {}, now routing "
@@ -278,7 +287,7 @@ Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&& knng,
             spdlog::warn("Warning: node {} has too many routing edges {}", i,
                          cnt[i + 1] - cnt[i]);
         }
-        for (size_t j = cnt[i]; j < cnt[i + 1] && j < cnt[i] + 10000; j++) {
+        for (size_t j = cnt[i]; j < cnt[i + 1] && j < cnt[i] + 50000; j++) {
             auto [d, to] = all_routing_path[j];
             if (to < i && check_valid({d, i}, c_left[i])) {
                 c_left[i].push_back({d, to}), valid.push_back(to);
@@ -314,11 +323,43 @@ Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&& knng,
 
 template <typename T>
 std::vector<std::pair<T, size_t>> Builder<T>::prune(
-    const std::vector<std::pair<T, size_t>>& candidates) const {
+    const std::vector<std::pair<T, size_t>>& candidates,
+    std::vector<size_t>* tag) const {
     std::vector<std::pair<T, size_t>> result;
-    for (size_t i = 0; i < candidates.size(); i++) {
-        if (check_valid(candidates[i], result)) {
-            result.push_back(candidates[i]);
+    if (tag == nullptr) {
+        for (size_t i = 0; i < candidates.size(); i++) {
+            if (check_valid(candidates[i], result)) {
+                result.push_back(candidates[i]);
+            }
+        }
+    } else {
+        auto &suf = *tag;
+        suf.clear();
+        for (size_t i = 0; i < candidates.size(); i++) {
+            auto [d_now, i_now] = candidates[i];
+            bool append = true;
+            for (size_t j = 0; j < result.size(); j++) {
+                auto [d_lst, i_lst] = result[j];
+                if (d_now > d_lst || suf[j] == size_t(-1)) {
+                    auto d_ij = vector_list.dist(i_now, i_lst);
+                    if (d_now > d_lst && d_now > d_ij) {
+                        append = false;
+                        break;
+                    }
+                    if (suf[j] == size_t(-1) && d_lst > d_now && d_lst > d_ij) {
+                        suf[j] = i_now;
+                    }
+                }
+            }
+            if (!append) {
+                for (auto &x : suf) {
+                    if (x == i_now) {
+                        x = size_t(-1);
+                    }
+                }
+            } else {
+                suf.push_back(size_t(-1));
+            }
         }
     }
     return result;
