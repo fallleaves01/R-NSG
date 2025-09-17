@@ -2,8 +2,8 @@
 
 #include <PCH.hpp>
 
-#include <IO/TypeIO.hpp>
 #include <Graph/Concepts.hpp>
+#include <IO/TypeIO.hpp>
 
 namespace TDFANN {
 
@@ -50,7 +50,7 @@ class GraphIndex {
 class TDGraphIndexBase : public GraphIndex<size_t> {
    public:
     TDGraphIndexBase(size_t node_cnt)
-        : GraphIndex<size_t>(node_cnt), header(node_cnt) {}
+        : GraphIndex<size_t>(node_cnt), header_index(1, 0) {}
     TDGraphIndexBase(std::string filename) : GraphIndex<size_t>(0) {
         std::ifstream fin(filename);
         if (!fin.good() || !load(fin)) {
@@ -84,20 +84,26 @@ class TDGraphIndexBase : public GraphIndex<size_t> {
         return TDGraphIndex(*this, _l, _r);
     }
     bool save(std::ofstream& fout) const {
-        return GraphIndex::save(fout) && IO::save(fout, header);
+        return GraphIndex::save(fout) && IO::save(fout, header_index) &&
+               IO::save(fout, header_data);
     }
     bool load(std::ifstream& fin) {
-        return GraphIndex::load(fin) && IO::load(fin, header);
+        return GraphIndex::load(fin) && IO::load(fin, header_index) &&
+               IO::load(fin, header_data);
     }
-    const std::vector<size_t>& get_header(size_t node) const {
-        return header[node];
+    std::span<const size_t> get_header(size_t node) const {
+        return std::span<const size_t>(
+            header_data.begin() + header_index[node],
+            header_index[node + 1] - header_index[node]);
     }
-    void set_header(size_t node, IndexList auto&& h) {
-        header[node] = std::vector<size_t>(h.begin(), h.end());
+    void append_header(IndexList auto&& h) {
+        header_index.push_back(header_data.size() + h.size());
+        header_data.insert(header_data.end(), h.begin(), h.end());
     }
 
    private:
-    std::vector<std::vector<size_t>> header;
+    std::vector<size_t> header_index;
+    std::vector<size_t> header_data;
 };
 
 }  // namespace Graph

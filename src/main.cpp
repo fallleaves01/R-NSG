@@ -1,7 +1,7 @@
 #include <PCH.hpp>
 
 #include <Utils/InitFunc.hpp>
-#include <Utils/Worker.hpp>
+#include <Core/Worker.hpp>
 using namespace TDFANN;
 
 int main(int argc, char** argv) {

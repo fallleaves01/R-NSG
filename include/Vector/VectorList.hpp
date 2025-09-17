@@ -23,6 +23,7 @@ class VectorList {
     T dist(size_t source, const Op& goal) const;
     template <typename Op, std::ranges::range R_op>
     std::vector<T> dist_all(const Op& source, const R_op& goal) const;
+    Vector::VectorType<T> mean() const;
 
     // struct operations
     auto operator[](size_t index) const { return vectors.col(index); }
@@ -70,7 +71,7 @@ void VectorList<T>::load(const std::string& filename) {
     unsigned tmp, idx = 0;
     spdlog::info("Vector dimension: {}, size: {}", dimension, n);
 
-    T *data = vectors.data();
+    T* data = vectors.data();
     while (fin.read(reinterpret_cast<char*>(&tmp), sizeof(unsigned))) {
         // spdlog::info("Reading vector {}/{} with dim = {}", idx + 1, n, tmp);
         if (!fin.read(reinterpret_cast<char*>(data + idx * dimension),
@@ -100,9 +101,9 @@ void VectorList<T>::init_sqrs() {
 template <typename T>
 template <typename Op>
 T VectorList<T>::dist2(size_t source, const Op& goal) const {
-    static_assert(std::is_convertible_v<Op, size_t> ||
-                      DotProductWithVectorType<Op, T>,
-                  "Op must be convertible to size_t or a vector-like type");
+    static_assert(
+        std::is_convertible_v<Op, size_t> || DotProductWithVectorType<Op, T>,
+        "Op must be convertible to size_t or a vector-like type");
 
     if constexpr (std::is_convertible_v<Op, size_t>) {
         return sqrs[source] + sqrs[goal] -
@@ -115,9 +116,9 @@ T VectorList<T>::dist2(size_t source, const Op& goal) const {
 template <typename T>
 template <typename Op>
 T VectorList<T>::dist(size_t source, const Op& goal) const {
-    static_assert(std::is_convertible_v<Op, size_t> ||
-                      DotProductWithVectorType<Op, T>,
-                  "Op must be convertible to size_t or a vector-like type");
+    static_assert(
+        std::is_convertible_v<Op, size_t> || DotProductWithVectorType<Op, T>,
+        "Op must be convertible to size_t or a vector-like type");
 
     return dist2(source, goal);
 }
@@ -127,14 +128,12 @@ template <typename Op, std::ranges::range R_op>
 std::vector<T> VectorList<T>::dist_all(const Op& source,
                                        const R_op& goal) const {
     using Item = decltype(*std::ranges::begin(goal));
-    constexpr int O_id =
-        std::is_convertible_v<Op, size_t>
-            ? 1
-            : (DotProductWithVectorType<Op, T> ? -1 : 0);
-    constexpr int I_id =
-        std::is_convertible_v<Item, size_t>
-            ? 1
-            : (DotProductWithVectorType<Item, T> ? -1 : 0);
+    constexpr int O_id = std::is_convertible_v<Op, size_t>
+                             ? 1
+                             : (DotProductWithVectorType<Op, T> ? -1 : 0);
+    constexpr int I_id = std::is_convertible_v<Item, size_t>
+                             ? 1
+                             : (DotProductWithVectorType<Item, T> ? -1 : 0);
     static_assert(O_id != 0,
                   "Op must be convertible to size_t or a vector-like type");
     static_assert(I_id != 0,
@@ -154,6 +153,17 @@ std::vector<T> VectorList<T>::dist_all(const Op& source,
             result.push_back(now_2 + sqrs[g] - 2 * source.dot(vectors.col(g)));
         }
     }
+    return result;
+}
+
+template <typename T>
+Vector::VectorType<T> VectorList<T>::mean() const {
+    Vector::VectorType<T> result(dimension);
+    result.setZero();
+    for (size_t i = 0; i < size(); i++) {
+        result += vectors.col(i);
+    }
+    result /= size();
     return result;
 }
 
