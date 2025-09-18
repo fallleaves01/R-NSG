@@ -24,6 +24,8 @@ class VectorList {
     template <typename Op, std::ranges::range R_op>
     std::vector<T> dist_all(const Op& source, const R_op& goal) const;
     Vector::VectorType<T> mean() const;
+    template <typename Op>
+    T sqr_sub_2dot(size_t, const Op&) const;
 
     // struct operations
     auto operator[](size_t index) const { return vectors.col(index); }
@@ -165,6 +167,14 @@ Vector::VectorType<T> VectorList<T>::mean() const {
     }
     result /= size();
     return result;
+}
+
+template <typename T>
+template <typename Op>
+T VectorList<T>::sqr_sub_2dot(size_t idx, const Op& vec) const {
+    static_assert(DotProductWithVectorType<Op, T>,
+                  "Op must support dot product with VectorType<T>");
+    return sqrs[idx] - 2 * vectors.col(idx).dot(vec);
 }
 
 }  // namespace Vector
