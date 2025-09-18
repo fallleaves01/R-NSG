@@ -7,9 +7,8 @@ add_rules("plugin.compile_commands.autoupdate", {
 })
 
 add_repositories("local repo")
-add_requires("cli11", "spdlog", "eigen", "openmp", "openblas", "parallel-hashmap")
+add_requires("cli11", "spdlog", "eigen", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
 add_requires("faiss-cpu")
-add_requires("mimalloc", {system = false, configs = {shared = false}})
 -- add_requires("mkl", {system = true})
 
 target("TDFANN")
@@ -18,7 +17,7 @@ target("TDFANN")
     add_links("stdc++")
     add_syslinks("pthread")
 
-    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc")
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
     -- add_packages("mkl")
     -- add_ldflags("-lm", "-ldl")
     -- add_links("mkl_intel_lp64", "mkl_sequential", "mkl_core")
