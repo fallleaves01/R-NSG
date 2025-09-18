@@ -21,11 +21,12 @@ class Worker {
     auto init_knng(CLI::App& app) {
         auto knng_cmd = app.add_subcommand("knng", "Build the KNN Graph");
         knng_cmd
-            ->add_option("-v,--vector", vector_file, "Path to the vector file")
+            ->add_option("-d,--dataset", dataset_file,
+                         "Path to the dataset file")
             ->required();
-        knng_cmd->add_option("-k,--k", k, "K value for KNNG")->required();
+        knng_cmd->add_option("-k", k, "K value for KNNG")->required();
         knng_cmd
-            ->add_option("-g,--graph", knng_file,
+            ->add_option("-g,--graph_file", knng_file,
                          "Path to the graph file to save knng")
             ->required();
         return knng_cmd;
@@ -35,12 +36,19 @@ class Worker {
         auto build_cmd =
             app.add_subcommand("build", "Build the TDF Graph Index");
         build_cmd
-            ->add_option("-v,--vector", vector_file, "Path to the vector file")
+            ->add_option("-d,--dataset_file", dataset_file,
+                         "Path to the dataset file")
             ->required();
         build_cmd
-            ->add_option("-i,--index", index_file, "Path to save the index")
+            ->add_option("-i,--index_file", index_file,
+                         "Path to save the index")
             ->required();
-        build_cmd->add_option("-k,--knng", knng_file, "Path to the KNNG file")
+        build_cmd
+            ->add_option("-k,--knng_file", knng_file, "Path to the KNNG file")
+            ->required();
+        build_cmd
+            ->add_option("-l,--label_file", label_file,
+                         "Path to the label file")
             ->required();
         return build_cmd;
     }
@@ -51,28 +59,41 @@ class Worker {
         query_cmd->add_flag("-l,--linear", brute,
                             "Use brute-force linear search instead of index");
         query_cmd
-            ->add_option("-v,--vector", vector_file, "Path to the vector file")
+            ->add_option("-d,--dataset_file", dataset_file,
+                         "Path to the vector file")
             ->required();
         query_cmd
-            ->add_option("-i,--index", index_file, "Path to the index file")
+            ->add_option("-i,--index_file", index_file,
+                         "Path to the index file")
             ->required();
         query_cmd
-            ->add_option("-q,--query", query_file, "Path to the query file")
+            ->add_option("-q,--query_file", query_file,
+                         "Path to the query file")
+            ->required();
+        query_cmd
+            ->add_option("-l,--label_file", label_file,
+                         "Path to the label file")
+            ->required();
+        query_cmd
+            ->add_option("-Q,--qrange_file", qrange_file,
+                         "Path to the query range file")
             ->required();
         query_cmd->add_option("-n,--number", k, "Number of nearest neighbors")
             ->required();
-        query_cmd->add_option("-b,--beam", beam_size, "beam size")->required();
-        query_cmd
-            ->add_option("-r,--result", result_file, "Path to the result file")
+        query_cmd->add_option("-b,--beam_size", beam_size, "beam size")
             ->required();
-        query_cmd->add_option("-a,--answer", answer_file,
-                              "Path to the answer file");
+        query_cmd
+            ->add_option("-r,--result_file", result_file,
+                         "Path to the result file")
+            ->required();
+        query_cmd->add_option("-g,--groundtruth_file", groundtruth_file,
+                              "Path to the groundtruth file");
         return query_cmd;
     }
 
     int knng() {
         spdlog::info("Building KNN Graph...");
-        Vector::VectorList<float> vector_list(vector_file);
+        Vector::VectorList<float> vector_list(dataset_file, label_file);
         auto builder = Builder(vector_list);
         auto knng = builder.nn_descent(k, verbose);
         std::ofstream fout(knng_file);
@@ -85,7 +106,7 @@ class Worker {
 
     int build() {
         spdlog::info("Building TDF Graph Index...");
-        Vector::VectorList<float> vector_list(vector_file);
+        Vector::VectorList<float> vector_list(dataset_file, label_file);
         auto builder = Builder(vector_list);
         std::unique_ptr<Graph::GraphIndex<std::monostate>> knng_ptr;
         try {
@@ -115,7 +136,7 @@ class Worker {
 
     int query() {
         spdlog::info("Querying Nearest Neighbors...");
-        Vector::VectorList<float> vector_list(vector_file);
+        Vector::VectorList<float> vector_list(dataset_file);
         Graph::TDGraphIndexBase index(index_file);
         Searcher searcher(vector_list, index);
         Vector::VectorList<float> query_list(query_file);
@@ -175,12 +196,16 @@ class Worker {
             }
         }
         auto time = Timer::end("Query");
+        spdlog::info(
+            "average cmps: {:.4f}",
+            Recorder<size_t>::read("total_visited") * 1.0 / query_list.size());
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
-        if (!answer_file.empty()) {
-            std::ifstream fin(answer_file);
+        if (!groundtruth_file.empty()) {
+            std::ifstream fin(groundtruth_file);
             if (!fin.good()) {
-                spdlog::error("Failed to open answer file {}", answer_file);
+                spdlog::error("Failed to open answer file {}",
+                              groundtruth_file);
                 return 1;
             }
             std::vector<size_t> answer(query_list.size() * k);
@@ -205,12 +230,14 @@ class Worker {
 
    private:
     bool verbose, brute = false;
-    std::string vector_file;
+    std::string dataset_file;
     std::string index_file;
     std::string query_file;
     std::string result_file;
-    std::string answer_file;
+    std::string groundtruth_file;
     std::string knng_file;
+    std::string qrange_file;
+    std::string label_file;
     size_t k, beam_size;
 };
 
