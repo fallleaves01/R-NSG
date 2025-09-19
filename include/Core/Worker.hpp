@@ -6,6 +6,7 @@
 #include <Graph/GraphIndex.hpp>
 #include <Utils/InitFunc.hpp>
 #include <Vector/VectorList.hpp>
+#include "IO/TypeIO.hpp"
 
 namespace TDFANN {
 
@@ -21,7 +22,7 @@ class Worker {
     auto init_knng(CLI::App& app) {
         auto knng_cmd = app.add_subcommand("knng", "Build the KNN Graph");
         knng_cmd
-            ->add_option("-d,--dataset", dataset_file,
+            ->add_option("-d,--dataset_file", dataset_file,
                          "Path to the dataset file")
             ->required();
         knng_cmd->add_option("-k", k, "K value for KNNG")->required();
@@ -36,12 +37,12 @@ class Worker {
         auto build_cmd =
             app.add_subcommand("build", "Build the TDF Graph Index");
         build_cmd
-            ->add_option("-d,--dataset_file", dataset_file,
-                         "Path to the dataset file")
+            ->add_option("-s,--range_step", range_step,
+                         "Range step for building the index")
             ->required();
         build_cmd
-            ->add_option("-i,--index_file", index_file,
-                         "Path to save the index")
+            ->add_option("-d,--dataset_file", dataset_file,
+                         "Path to the dataset file")
             ->required();
         build_cmd
             ->add_option("-k,--knng_file", knng_file, "Path to the KNNG file")
@@ -50,13 +51,17 @@ class Worker {
             ->add_option("-l,--label_file", label_file,
                          "Path to the label file")
             ->required();
+        build_cmd
+            ->add_option("-i,--index_file", index_file,
+                         "Path to save the index")
+            ->required();
         return build_cmd;
     }
 
     auto init_query(CLI::App& app) {
         auto query_cmd = app.add_subcommand(
             "query", "Query nearest neighbors by TDF Graph Index");
-        query_cmd->add_flag("-l,--linear", brute,
+        query_cmd->add_flag("-b,--brute", brute,
                             "Use brute-force linear search instead of index");
         query_cmd
             ->add_option("-d,--dataset_file", dataset_file,
@@ -78,9 +83,10 @@ class Worker {
             ->add_option("-Q,--qrange_file", qrange_file,
                          "Path to the query range file")
             ->required();
-        query_cmd->add_option("-n,--number", k, "Number of nearest neighbors")
+        query_cmd
+            ->add_option("-n,--qnumber", qnumber, "Number of nearest neighbors")
             ->required();
-        query_cmd->add_option("-b,--beam_size", beam_size, "beam size")
+        query_cmd->add_option("-s,--beam_size", beam_size, "beam size")
             ->required();
         query_cmd
             ->add_option("-r,--result_file", result_file,
@@ -93,7 +99,7 @@ class Worker {
 
     int knng() {
         spdlog::info("Building KNN Graph...");
-        Vector::VectorList<float> vector_list(dataset_file, label_file);
+        Vector::VectorList<float> vector_list(dataset_file);
         auto builder = Builder(vector_list);
         auto knng = builder.nn_descent(k, verbose);
         std::ofstream fout(knng_file);
@@ -106,7 +112,7 @@ class Worker {
 
     int build() {
         spdlog::info("Building TDF Graph Index...");
-        Vector::VectorList<float> vector_list(dataset_file, label_file);
+        Vector::VectorList<float> vector_list(dataset_file);
         auto builder = Builder(vector_list);
         std::unique_ptr<Graph::GraphIndex<std::monostate>> knng_ptr;
         try {
@@ -125,7 +131,8 @@ class Worker {
                 return 1;
             }
         }
-        auto g = builder.build(*knng_ptr, 200);
+        auto label = IO::load_json_to_vec(label_file);
+        auto g = builder.build(*knng_ptr, range_step, label);
         std::ofstream fout(index_file);
         if (!fout.good() || !g.save(fout)) {
             spdlog::error("Failed to save index to {}", index_file);
@@ -138,16 +145,22 @@ class Worker {
         spdlog::info("Querying Nearest Neighbors...");
         Vector::VectorList<float> vector_list(dataset_file);
         Graph::TDGraphIndexBase index(index_file);
-        Searcher searcher(vector_list, index);
+        // Searcher searcher(vector_list, index);
         Vector::VectorList<float> query_list(query_file);
         std::ofstream fout(result_file);
         if (!fout.good()) {
             spdlog::error("Failed to open result file {}", result_file);
             return 1;
         }
-        std::vector<size_t> ans(query_list.size() * k);
+        auto label = IO::load_json_to_vec(label_file);
+        auto qrange = IO::load_json_to_vec(qrange_file);
+        std::vector<size_t> ans(query_list.size() * qnumber);
+        std::vector<size_t> node_id(label.size());
+        std::ranges::sort(node_id, [&](size_t x, size_t y) {
+            return std::pair{label[x], x} < std::pair{label[y], y};
+        });
 
-        auto header = index.get_header(vector_list.size() - 1);
+        // auto header = index.get_header(vector_list.size() - 1);
         // header.clear();
         // auto center = vector_list.mean();
         // auto dist_center = vector_list.dist_all(
@@ -170,12 +183,13 @@ class Worker {
         // std::cout << std::endl;
         Timer::start("Query");
         if (brute) {
+            Searcher searcher(vector_list, index);
             for (size_t i = 0; i < query_list.size(); i++) {
-                auto result = searcher.linear_search(query_list[i], k);
+                auto result = searcher.linear_search(query_list[i], qnumber);
                 std::ranges::copy(result | std::views::transform([](auto& p) {
                                       return p.second;
                                   }),
-                                  ans.begin() + i * k);
+                                  ans.begin() + i * qnumber);
                 if (i % 128 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
                                  query_list.size());
@@ -183,12 +197,16 @@ class Worker {
             }
         } else {
             for (size_t i = 0; i < query_list.size(); i++) {
+                auto g_sub = index(label, qrange[i * 2], qrange[i * 2 + 1]);
+                Searcher searcher(vector_list, g_sub);
+                auto st = *std::ranges::partition_point(
+                    node_id, [&](auto x) { return label[x] < qrange[i * 2]; });
                 auto result =
-                    searcher.beam_search(query_list[i], k, header, beam_size);
+                    searcher.beam_search(query_list[i], qnumber, st, beam_size);
                 std::ranges::copy(result | std::views::transform([](auto& p) {
                                       return p.second;
                                   }),
-                                  ans.begin() + i * k);
+                                  ans.begin() + i * qnumber);
                 if (i % 1024 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
                                  query_list.size());
@@ -202,27 +220,23 @@ class Worker {
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
         if (!groundtruth_file.empty()) {
-            std::ifstream fin(groundtruth_file);
-            if (!fin.good()) {
-                spdlog::error("Failed to open answer file {}",
-                              groundtruth_file);
-                return 1;
-            }
-            std::vector<size_t> answer(query_list.size() * k);
-            IO::load(fin, answer);
+            auto gt = IO::load_json_to_vec(groundtruth_file);
             size_t correct = 0;
             for (size_t i = 0; i < query_list.size(); i++) {
-                auto answer_r =
-                    answer | std::views::drop(i * k) | std::views::take(k);
-                for (size_t j = 0; j < k; j++) {
-                    if (std::ranges::find(answer_r, ans[i * k + j]) !=
-                        answer_r.end()) {
+                phmap::flat_hash_map<float, size_t> answer_cnt;
+                for (size_t j = i * qnumber; j < (i + 1) * qnumber; j++) {
+                    answer_cnt[vector_list.dist2(ans[j], query_list[i])]++;
+                }
+                for (size_t j = i * qnumber; j < (i + 1) * qnumber; j++) {
+                    auto now = vector_list.dist2(gt[j], query_list[i]);
+                    if (answer_cnt[now] > 0) {
                         correct++;
+                        answer_cnt[now]--;
                     }
                 }
             }
             spdlog::info("Recall: {:.4f}",
-                         (double)correct / (k * query_list.size()));
+                         (double)correct / (qnumber * query_list.size()));
         }
         IO::save(fout, ans);
         return 0;
@@ -238,7 +252,7 @@ class Worker {
     std::string knng_file;
     std::string qrange_file;
     std::string label_file;
-    size_t k, beam_size;
+    size_t k, beam_size, range_step, qnumber;
 };
 
 }  // namespace TDFANN
