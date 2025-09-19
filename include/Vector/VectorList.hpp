@@ -1,5 +1,9 @@
 #pragma once
+#include <PCH.hpp>
+
 #include <Vector/Concepts.hpp>
+#include <nlohmann/json.hpp>
+#include <IO/TypeIO.hpp>
 
 namespace TDFANN {
 
@@ -12,8 +16,8 @@ class VectorList {
 
     // file operations
     VectorList() = default;
-    VectorList(const std::string& filename);
-    void load(const std::string& filename);
+    VectorList(const std::string& dataset);
+    void load(const std::string& dataset);
 
     // calculation operations
     void init_sqrs();
@@ -34,7 +38,7 @@ class VectorList {
 
    private:
     Eigen::MatrixXf vectors;
-    std::vector<T> sqrs;     // 用于存储平方和
+    std::vector<T> sqrs;  // 用于存储平方和
     unsigned dimension = 0;  // 向量维度
 };
 
@@ -62,32 +66,10 @@ void VectorList<T>::load(const std::string& filename) {
         throw std::runtime_error("Failed to open vector file");
     }
     spdlog::info("Loading vector list from file: {}", filename);
-
-    fin.read((char*)&dimension, sizeof(unsigned));
-    fin.seekg(0, std::ios::end);
-    std::ios::pos_type ss = fin.tellg();
-    size_t file_size = ss;
-    unsigned n = file_size / (dimension + 1) / sizeof(T);
-    fin.seekg(0, std::ios::beg);
+    auto [n, dim] = IO::get_fvecs_size(fin);
+    dimension = dim;
     vectors.resize(dimension, n);
-    unsigned tmp, idx = 0;
-    spdlog::info("Vector dimension: {}, size: {}", dimension, n);
-
-    T* data = vectors.data();
-    while (fin.read(reinterpret_cast<char*>(&tmp), sizeof(unsigned))) {
-        // spdlog::info("Reading vector {}/{} with dim = {}", idx + 1, n, tmp);
-        if (!fin.read(reinterpret_cast<char*>(data + idx * dimension),
-                      dimension * sizeof(T))) {
-            spdlog::error("Failed to read vector data from file");
-            throw std::runtime_error("Failed to read vector data from file");
-        }
-        idx++;
-        if (tmp != dimension) {
-            spdlog::error("Inconsistent vector dimensions in file: {}",
-                          filename);
-            throw std::runtime_error("Inconsistent vector dimensions in file");
-        }
-    }
+    IO::read_fvecs(fin, dimension, vectors.data());
     init_sqrs();
 }
 
