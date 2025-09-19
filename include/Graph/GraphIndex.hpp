@@ -60,11 +60,11 @@ class TDGraphIndexBase : public GraphIndex<size_t> {
 
     class TDGraphIndex {
        public:
-        TDGraphIndex(const TDGraphIndexBase& _base, size_t _l, size_t _r)
-            : base(_base), l(_l), r(_r) {}
+        TDGraphIndex(const TDGraphIndexBase& _base, const std::vector<size_t> &_label, size_t _l, size_t _r)
+            : base(_base), label(_label), l_label(_l), r_label(_r) {}
         auto get_neighbours(size_t node) const {
             return base.get_neighbours(node) | std::views::filter([&](auto& x) {
-                       return x.to >= l && x.to < r;
+                       return label[x.to] >= l_label && label[x.to] <= r_label;
                    });
         }
         IndexList auto get_neighbours_id(size_t node) const {
@@ -72,16 +72,17 @@ class TDGraphIndexBase : public GraphIndex<size_t> {
                    std::views::transform([](auto x) { return x.to; });
         }
         auto get_header() const {
-            return base.get_header(r) |
-                   std::views::filter([&](auto& x) { return x >= l && x < r; });
+            return base.get_header(r_label) |
+                   std::views::filter([&](auto& x) { return label[x] >= l_label && x < r_label; });
         }
 
        private:
         const TDGraphIndexBase& base;
-        size_t l, r;
+        const std::vector<size_t> &label;
+        size_t l_label, r_label;
     };
-    TDGraphIndex operator()(size_t _l, size_t _r) const {
-        return TDGraphIndex(*this, _l, _r);
+    TDGraphIndex operator()(const std::vector<size_t> &_label, size_t _l, size_t _r) const {
+        return TDGraphIndex(*this, _label, _l, _r);
     }
     bool save(std::ofstream& fout) const {
         return GraphIndex::save(fout) && IO::save(fout, header_index) &&
