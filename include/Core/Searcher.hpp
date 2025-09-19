@@ -7,6 +7,7 @@
 #include <Utils/ExFunc.hpp>
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
+#include <Utils/Recorder.hpp>
 
 namespace TDFANN {
 
@@ -117,6 +118,7 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         }
     }
 
+    size_t total = 0;
     for (size_t uid = 0; uid < beam_size; uid++) {
         if (candidates[uid].visited) [[unlikely]] {
             continue;  // 已处理过，跳过
@@ -130,8 +132,10 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
             std::views::filter([&](auto x) { return !vis_dis.contains(x); }));
         std::vector<T> dists = dataset.dist_all(goal, neighbours);
         size_t dist_id = 0;
+        total += dists.size();
         for (const auto& neighbour : neighbours) {
             T dist = dists[dist_id++];
+            // T dist = dataset.sqr_sub_2dot(neighbour, goal);
             if (dist < candidates.back().dis) [[unlikely]] {
                 candidates.pop_back();
                 auto it = std::partition_point(
@@ -143,6 +147,8 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
             }
         }
     }
+
+    Recorder<size_t>::add("total_visited", total);
 
     if (candidates_ptr != nullptr) {
         auto &c = *candidates_ptr;
