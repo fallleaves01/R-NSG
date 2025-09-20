@@ -137,8 +137,9 @@ Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
             candidate_size = c_left.size() + c_right.size();
         }
 
-        c_left = prune(c_left);
-        c_right = prune(c_right);
+        std::vector<size_t> l_bid, r_bid;
+        c_left = prune(c_left, &l_bid);
+        c_right = prune(c_right, &r_bid);
 
         total_degree += c_left.size() + c_right.size();
 
@@ -168,9 +169,14 @@ Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
                 sub_prune(c_left) + sub_prune(c_right));
         }
 
-        g.add_neighbours(
-            i, std::array{c_left, c_right} | std::views::join |
-                   std::views::transform([&](auto& x) { return x.second; }));
+        g.add_neighbours(i, std::views::iota(0ul, c_left.size()) | std::views::transform([&](size_t x) {
+            size_t pid = c_left[x].second;
+            return Graph::to_node(pid, label[pid], l_bid[x]);
+        }));
+        g.add_neighbours(i, std::views::iota(0ul, c_right.size()) | std::views::transform([&](size_t x) {
+            size_t pid = c_right[x].second;
+            return Graph::to_node(pid, label[pid], r_bid[x]);
+        }));
     }
     spdlog::info("average degree {:.2f}",
                  total_degree * 1.0 / vector_list.size());
@@ -367,6 +373,7 @@ std::vector<std::pair<T, size_t>> Builder<T>::prune(
                     }
                 }
             } else {
+                result.push_back(candidates[i]);
                 suf.push_back(size_t(-1));
             }
         }

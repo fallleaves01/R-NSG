@@ -17,7 +17,7 @@ class GraphIndex {
         [[no_unique_address]] Data data;
         Node() : to(-1) {}
         Node(size_t _to) : to(_to) {}
-        Node(size_t _to, Data&& _data) : to(_to), data(std::forward(_data)) {}
+        Node(size_t _to, Data&& _data) : to(_to), data(std::forward<Data>(_data)) {}
     };
     GraphIndex(std::string filename) {
         std::ifstream fin(filename);
@@ -31,7 +31,8 @@ class GraphIndex {
         return edges.size() - 1;
     }
     void add_neighbours(size_t from, std::ranges::range auto&& to) {
-        edges[from].insert(edges[from].end(), to.begin(), to.end());
+        std::ranges::copy(to, std::back_inserter(edges[from]));
+        // edges[from].insert(edges[from].end(), to.begin(), to.end());
     }
     const std::vector<Node>& get_neighbours(size_t node) const {
         return edges[node];
@@ -47,11 +48,19 @@ class GraphIndex {
     std::vector<std::vector<Node>> edges;
 };
 
-class TDGraphIndexBase : public GraphIndex<size_t> {
+struct TDData {
+    size_t label, banned_id;
+};
+
+inline GraphIndex<TDData>::Node to_node(size_t to, size_t label, size_t banned_id) {
+    return GraphIndex<TDData>::Node{to, TDData{label, banned_id}};
+}
+
+class TDGraphIndexBase : public GraphIndex<TDData> {
    public:
     TDGraphIndexBase(size_t node_cnt)
-        : GraphIndex<size_t>(node_cnt), header_index(1, 0) {}
-    TDGraphIndexBase(std::string filename) : GraphIndex<size_t>(0) {
+        : GraphIndex<TDData>(node_cnt), header_index(1, 0) {}
+    TDGraphIndexBase(std::string filename) : GraphIndex<TDData>(0) {
         std::ifstream fin(filename);
         if (!fin.good() || !load(fin)) {
             throw std::runtime_error("Failed to load graph from " + filename);
@@ -64,7 +73,7 @@ class TDGraphIndexBase : public GraphIndex<size_t> {
             : base(_base), label(_label), l_label(_l), r_label(_r) {}
         auto get_neighbours(size_t node) const {
             return base.get_neighbours(node) | std::views::filter([&](auto& x) {
-                       return label[x.to] >= l_label && label[x.to] <= r_label;
+                       return x.data.label >= l_label && x.data.label <= r_label;
                    });
         }
         IndexList auto get_neighbours_id(size_t node) const {

@@ -14,7 +14,7 @@ groundtruth_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/sif_gt_s
 knng_file = "../test_data/knng_400.graph"
 qrange_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/qrangesel_6_1_100000_random.json"
 label_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/attr_sel_1_100000_random.json"
-index_file = "../test_data/tdfg_400_label.graph"
+index_file = "../test_data/tdfg_400_new.graph"
 
 knng_cmd = f"{exec_path} --verbose knng\
  --dataset_file {dataset_file}\
