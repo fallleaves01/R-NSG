@@ -4,6 +4,7 @@
 
 #include <Graph/Concepts.hpp>
 #include <Vector/Concepts.hpp>
+#include "Graph/GraphIndex.hpp"
 
 namespace TDFANN {
 
@@ -14,5 +15,9 @@ concept IndexOrList =
 template <typename Op, typename T>
 concept IndexOrVector =
     std::convertible_to<Op, size_t> || Vector::DotProductWithVectorType<Op, T>;
+
+template <typename Op>
+concept IsTDFG = std::is_same_v<Op, Graph::TDGraphIndexBase> ||
+                 std::is_same_v<Op, Graph::TDGraphIndexBase::TDGraphIndex>;
 
 }  // namespace TDFANN

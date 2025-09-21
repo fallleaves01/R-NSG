@@ -5,9 +5,9 @@
 #include <Core/Concepts.hpp>
 #include <Graph/Concepts.hpp>
 #include <Utils/ExFunc.hpp>
+#include <Utils/Recorder.hpp>
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
-#include <Utils/Recorder.hpp>
 
 namespace TDFANN {
 
@@ -127,23 +127,32 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
         candidates[uid].visited = true;  // 标记为已处理
 
         // 获取当前节点的邻居
-        auto neighbours = Utils::to_vector(
-            graph.get_neighbours_id(current_node) |
-            std::views::filter([&](auto x) { return !vis_dis.contains(x); }));
-        std::vector<T> dists = dataset.dist_all(goal, neighbours);
+        auto neighbours = Utils::to_vector(graph.get_neighbours(current_node) |
+                                           std::views::filter([&](auto x) {
+                                               return !vis_dis.contains(x.to);
+                                           }));
+        std::vector<T> dists = dataset.dist_all(
+            goal,
+            neighbours | std::views::transform([](auto x) { return x.to; }));
         size_t dist_id = 0;
         total += dists.size();
         for (const auto& neighbour : neighbours) {
             T dist = dists[dist_id++];
             // T dist = dataset.sqr_sub_2dot(neighbour, goal);
             if (dist < candidates.back().dis) [[unlikely]] {
+                // if constexpr (IsTDFG<G>) {
+                //     if (vis_dis.contains(neighbour.data.banned_id)) {
+                //         --total;
+                //         continue;
+                //     }
+                // }
                 candidates.pop_back();
                 auto it = std::partition_point(
                     candidates.begin(), candidates.end(),
                     [&](const auto& a) { return a.dis < dist; });
                 uid = std::min(uid, it - candidates.begin() - size_t(1));
-                candidates.insert(it, {dist, false, neighbour});
-                vis_dis.insert({neighbour, dist});
+                candidates.insert(it, {dist, false, neighbour.to});
+                vis_dis.insert({neighbour.to, dist});
             }
         }
     }
@@ -151,7 +160,7 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
     Recorder<size_t>::add("total_visited", total);
 
     if (candidates_ptr != nullptr) {
-        auto &c = *candidates_ptr;
+        auto& c = *candidates_ptr;
         c.reserve(c.size() + vis_dis.size());
         for (auto [i, d] : vis_dis) {
             c.push_back({d, i});
