@@ -16,11 +16,15 @@ class Builder {
     Builder(const Vector::VectorList<T>& data) : vector_list(data) {};
     Graph::GraphIndex<std::monostate> nn_descent(size_t k,
                                                  bool verbose = false) const;
-    Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng, size_t range_step, const std::vector<size_t> &label) const;
+    Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng,
+                                  size_t range_step,
+                                  const std::vector<size_t>& label) const;
     // Graph::TDGraphIndexBase build_routing(Graph::GraphLike auto&& knng,
     //                                       size_t d) const;
     void init_header(Graph::TDGraphIndexBase&,
-                     const Vector::VectorType<T>&) const;
+                     const Vector::VectorType<T>&,
+                     const std::vector<size_t>& label,
+                     const std::vector<size_t>& order) const;
 
    private:
     bool check_valid(const std::pair<T, size_t>&,
@@ -60,11 +64,13 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k,
 
 template <typename T>
 void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
-                             const Vector::VectorType<T>& center) const {
-    size_t n = vector_list.size(), step = (n + 99) / 100;
+                             const Vector::VectorType<T>& center,
+                             const std::vector<size_t>& label,
+                             const std::vector<size_t>& order) const {
+    spdlog::info("Init header");
     std::vector<std::pair<T, size_t>> pre_header;
-    for (size_t i = 0; i < n; i++) {
-        bool output_tag = (i + 1) % step == 0 || i == n;
+    size_t lst_label = size_t(-1), header_size = 0, header_cnt = 0;
+    for (auto i : order) {
         pre_header.insert(pre_header.begin(), {vector_list.dist(i, center), i});
         auto dnow = pre_header[0].first;
         for (auto it = std::next(pre_header.begin()); it != pre_header.end();) {
@@ -77,17 +83,22 @@ void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
         }
         // g.set_header(i, pre_header | std::views::transform(
         //                                  [](auto& x) { return x.second; }));
-        g.append_header(std::array{i});
-        if (output_tag) {
-            spdlog::info("Header progress: {}/{} ({:.2f}%), cand = {}", i + 1,
-                         n, (i + 1) * 100.0 / n, pre_header.size());
+        if (label[i] != lst_label) {
+            // g.append_header(label[i], pre_header | std::views::transform(
+            //                              [](auto& x) { return x.second; }));
+            // header_size += pre_header.size(), header_cnt += 1;
+            g.append_header(label[i], std::array{i});
         }
+        lst_label = label[i];
     }
+    spdlog::info("Init header done, header averange size {}", (double)header_size / header_cnt);
 }
 
 template <typename T>
-Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
-                                          size_t range_step, const std::vector<size_t> &label) const {
+Graph::TDGraphIndexBase Builder<T>::build(
+    Graph::GraphLike auto&& knng,
+    size_t range_step,
+    const std::vector<size_t>& label) const {
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
     Graph::TDGraphIndexBase g(vector_list.size());
@@ -101,7 +112,7 @@ Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
     for (size_t i = 0; i < index.size(); i++) {
         pos[index[i]] = i;
     }
-    init_header(g, center);
+    init_header(g, center, label, index);
 
     size_t n = vector_list.size(), total_degree = 0;
     const size_t step = (vector_list.size() + 99) / 100;
@@ -116,17 +127,20 @@ Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
                 c_right.push_back({vector_list.dist(i, neighbour), neighbour});
             }
         }
-        for (size_t j = pos[i] - std::min(pos[i], range_step); j < pos[i]; j++) {
+        for (size_t j = pos[i] - std::min(pos[i], range_step); j < pos[i];
+             j++) {
             c_left.push_back({vector_list.dist(i, index[j]), index[j]});
         }
         for (size_t j = pos[i] + 1; j < std::min(pos[i] + range_step, n); j++) {
             c_right.push_back({vector_list.dist(i, index[j]), index[j]});
         }
 
-        std::ranges::sort(
-            c_left, [&](auto&& x, auto&& y) { return pos[x.second] > pos[y.second]; });
-        std::ranges::sort(
-            c_right, [&](auto&& x, auto&& y) { return pos[x.second] < pos[y.second]; });
+        std::ranges::sort(c_left, [&](auto&& x, auto&& y) {
+            return pos[x.second] > pos[y.second];
+        });
+        std::ranges::sort(c_right, [&](auto&& x, auto&& y) {
+            return pos[x.second] < pos[y.second];
+        });
 
         c_left.erase(std::begin(std::ranges::unique(c_left)), c_left.end());
         c_right.erase(std::begin(std::ranges::unique(c_right)), c_right.end());
@@ -169,14 +183,18 @@ Graph::TDGraphIndexBase Builder<T>::build(Graph::GraphLike auto&& knng,
                 sub_prune(c_left) + sub_prune(c_right));
         }
 
-        g.add_neighbours(i, std::views::iota(0ul, c_left.size()) | std::views::transform([&](size_t x) {
-            size_t pid = c_left[x].second;
-            return Graph::to_node(pid, label[pid], l_bid[x]);
-        }));
-        g.add_neighbours(i, std::views::iota(0ul, c_right.size()) | std::views::transform([&](size_t x) {
-            size_t pid = c_right[x].second;
-            return Graph::to_node(pid, label[pid], r_bid[x]);
-        }));
+        g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
+                                std::views::transform([&](size_t x) {
+                                    size_t pid = c_left[x].second;
+                                    return Graph::to_node(pid, label[pid],
+                                                          l_bid[x]);
+                                }));
+        g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
+                                std::views::transform([&](size_t x) {
+                                    size_t pid = c_right[x].second;
+                                    return Graph::to_node(pid, label[pid],
+                                                          r_bid[x]);
+                                }));
     }
     spdlog::info("average degree {:.2f}",
                  total_degree * 1.0 / vector_list.size());
@@ -199,7 +217,8 @@ bool Builder<T>::check_valid(
 }
 
 // template <typename T>
-// Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&& knng,
+// Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&&
+// knng,
 //                                                   size_t d) const {
 //     spdlog::info("Building TDF Graph Index, index size {}...",
 //                  vector_list.size());
@@ -254,8 +273,9 @@ bool Builder<T>::check_valid(
 //             spdlog::info(
 //                 "Build progress: {}/{} ({:.2f}%), prune time cost {}, "
 //                 "candidate size {} -> {}",
-//                 i + 1, vector_list.size(), (i + 1) * 100.0 / vector_list.size(),
-//                 t, candidate_size, c_l.size() + c_r.size());
+//                 i + 1, vector_list.size(), (i + 1) * 100.0 /
+//                 vector_list.size(), t, candidate_size, c_l.size() +
+//                 c_r.size());
 //         }
 
 //         g.add_neighbours(
@@ -314,17 +334,17 @@ bool Builder<T>::check_valid(
 //         total_add += valid.size();
 
 //         if (output_tag) {
-//             static auto last_time = std::chrono::high_resolution_clock::now();
-//             auto now = std::chrono::high_resolution_clock::now();
-//             auto duration =
+//             static auto last_time =
+//             std::chrono::high_resolution_clock::now(); auto now =
+//             std::chrono::high_resolution_clock::now(); auto duration =
 //                 std::chrono::duration_cast<std::chrono::milliseconds>(now -
 //                                                                       last_time)
 //                     .count();
 //             if (duration > 1000 || ((i + 1) % step == 0 || i + 1 == n)) {
 //                 last_time = now;
 //                 spdlog::info(
-//                     "Prune routing progress: {}/{} ({:.2f}%), cand = {}, total "
-//                     "add "
+//                     "Prune routing progress: {}/{} ({:.2f}%), cand = {},
+//                     total " "add "
 //                     "{} edges",
 //                     i + 1, n, (i + 1) * 100.0 / n, valid.size(), total_add);
 //             }
@@ -348,7 +368,7 @@ std::vector<std::pair<T, size_t>> Builder<T>::prune(
             }
         }
     } else {
-        auto &suf = *tag;
+        auto& suf = *tag;
         suf.clear();
         for (size_t i = 0; i < candidates.size(); i++) {
             auto [d_now, i_now] = candidates[i];
@@ -367,7 +387,7 @@ std::vector<std::pair<T, size_t>> Builder<T>::prune(
                 }
             }
             if (!append) {
-                for (auto &x : suf) {
+                for (auto& x : suf) {
                     if (x == i_now) {
                         x = size_t(-1);
                     }
