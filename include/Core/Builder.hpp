@@ -71,27 +71,24 @@ void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
     std::vector<std::pair<T, size_t>> pre_header;
     size_t lst_label = size_t(-1), header_size = 0, header_cnt = 0;
     for (auto i : order) {
-        pre_header.insert(pre_header.begin(), {vector_list.dist(i, center), i});
-        auto dnow = pre_header[0].first;
-        for (auto it = std::next(pre_header.begin()); it != pre_header.end();) {
-            if (it->first > dnow &&
-                it->first > vector_list.dist(it->second, i)) {
-                it = pre_header.erase(it);
-            } else {
-                ++it;
-            }
+        auto now = std::pair{vector_list.dist(i, center), i};
+        while (!pre_header.empty() && pre_header[0].first >= now.first) {
+            pre_header.erase(pre_header.begin());
         }
-        // g.set_header(i, pre_header | std::views::transform(
-        //                                  [](auto& x) { return x.second; }));
+        pre_header.insert(pre_header.begin(), now);
         if (label[i] != lst_label) {
-            // g.append_header(label[i], pre_header | std::views::transform(
-            //                              [](auto& x) { return x.second; }));
-            // header_size += pre_header.size(), header_cnt += 1;
-            g.append_header(label[i], std::array{i});
+            if (pre_header.size() > 20) {
+                pre_header.resize(20);
+            }
+            header_size += pre_header.size(), header_cnt++;
+            g.append_header(
+                label[i], pre_header | std::views::transform(
+                                           [](auto&& x) { return x.second; }));
         }
         lst_label = label[i];
     }
-    spdlog::info("Init header done, header averange size {}", (double)header_size / header_cnt);
+    spdlog::info("Init header done, header averange size {}",
+                 (double)header_size / header_cnt);
 }
 
 template <typename T>
