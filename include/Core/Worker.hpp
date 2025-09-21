@@ -199,10 +199,8 @@ class Worker {
             for (size_t i = 0; i < query_list.size(); i++) {
                 auto g_sub = index(label, qrange[i * 2], qrange[i * 2 + 1]);
                 Searcher searcher(vector_list, g_sub);
-                auto st = *std::ranges::partition_point(
-                    node_id, [&](auto x) { return label[x] < qrange[i * 2]; });
-                auto result =
-                    searcher.beam_search(query_list[i], qnumber, st, beam_size);
+                auto result = searcher.beam_search(
+                    query_list[i], qnumber, g_sub.get_header(), beam_size);
                 std::ranges::copy(result | std::views::transform([](auto& p) {
                                       return p.second;
                                   }),
