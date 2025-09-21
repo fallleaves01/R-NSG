@@ -3,18 +3,18 @@ import sys
 
 exec_path = "../build/linux/x86_64/release/TDFANN"
 
-k = 400
-beam_size = 150
+k = 500
+beam_size = 120
 range_step = 500
 qnumber = 10
 dataset_file = "/mnt/win-dai/Vectors/sift/sift_base.fvecs"
 query_file = "/mnt/win-dai/Vectors/sift/sift_query.fvecs"
-result_file = "../test_data/sift_result_400.json"
+result_file = "../test_data/sift_result_500.json"
 groundtruth_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/sif_gt_sel_6_1_100000_random_10.json"
-knng_file = "../test_data/knng_400.graph"
+knng_file = "../test_data/knng_500.graph"
 qrange_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/qrangesel_6_1_100000_random.json"
 label_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/attr_sel_1_100000_random.json"
-index_file = "../test_data/tdfg_400_new.graph"
+index_file = "../test_data/tdfg_500.graph"
 
 knng_cmd = f"{exec_path} --verbose knng\
  --dataset_file {dataset_file}\
