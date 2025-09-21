@@ -188,13 +188,13 @@ Graph::TDGraphIndexBase Builder<T>::build(
                                     size_t pid = c_left[x].second;
                                     return Graph::to_node(pid, label[pid],
                                                           l_bid[x]);
-                                }));
+                                }) | std::views::reverse);
         g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_right[x].second;
                                     return Graph::to_node(pid, label[pid],
                                                           r_bid[x]);
-                                }));
+                                }) | std::views::reverse);
     }
     spdlog::info("average degree {:.2f}",
                  total_degree * 1.0 / vector_list.size());
