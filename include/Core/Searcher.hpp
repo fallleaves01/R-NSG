@@ -136,12 +136,14 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
             neighbours | std::views::transform([](auto x) { return x.to; }));
         size_t dist_id = 0;
         total += dists.size();
+        // phmap::flat_hash_set<size_t> prunned;
         for (const auto& neighbour : neighbours) {
             T dist = dists[dist_id++];
             // T dist = dataset.sqr_sub_2dot(neighbour, goal);
             if (dist < candidates.back().dis) [[unlikely]] {
                 // if constexpr (IsTDFG<G>) {
-                //     if (vis_dis.contains(neighbour.data.banned_id)) {
+                //     prunned.insert(neighbour.to);
+                //     if (prunned.contains(neighbour.data.banned_id)) {
                 //         --total;
                 //         continue;
                 //     }

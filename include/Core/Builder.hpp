@@ -148,9 +148,9 @@ Graph::TDGraphIndexBase Builder<T>::build(
             candidate_size = c_left.size() + c_right.size();
         }
 
-        std::vector<size_t> l_bid, r_bid;
-        c_left = prune(c_left, &l_bid);
-        c_right = prune(c_right, &r_bid);
+        // std::vector<size_t> l_bid, r_bid;
+        c_left = prune(c_left);
+        c_right = prune(c_right);
 
         total_degree += c_left.size() + c_right.size();
 
@@ -183,15 +183,15 @@ Graph::TDGraphIndexBase Builder<T>::build(
         g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_left[x].second;
-                                    return Graph::to_node(pid, label[pid],
-                                                          l_bid[x]);
-                                }) | std::views::reverse);
+                                    return Graph::to_node(pid, label[pid]);
+                                }) |
+                                std::views::reverse);
         g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_right[x].second;
-                                    return Graph::to_node(pid, label[pid],
-                                                          r_bid[x]);
-                                }) | std::views::reverse);
+                                    return Graph::to_node(pid, label[pid]);
+                                }) |
+                                std::views::reverse);
     }
     spdlog::info("average degree {:.2f}",
                  total_degree * 1.0 / vector_list.size());
@@ -212,146 +212,6 @@ bool Builder<T>::check_valid(
     }
     return true;
 }
-
-// template <typename T>
-// Graph::TDGraphIndexBase Builder<T>::build_routing(Graph::GraphLike auto&&
-// knng,
-//                                                   size_t d) const {
-//     spdlog::info("Building TDF Graph Index, index size {}...",
-//                  vector_list.size());
-
-//     size_t n = vector_list.size(), total_degree = 0;
-//     const size_t step = (n + 99) / 100;
-
-//     Graph::TDGraphIndexBase g(n);
-//     auto center = vector_list.mean();
-//     init_header(g, center);
-
-//     std::vector<std::vector<std::pair<T, size_t>>> c_left(n), c_right(n);
-//     for (size_t i = 0; i < vector_list.size(); i++) {
-//         bool output_tag = (i + 1) % step == 0 || i == vector_list.size();
-
-//         auto &c_l = c_left[i], &c_r = c_right[i];
-//         for (const auto& neighbour : knng.get_neighbours_id(i)) {
-//             if (neighbour < i) {
-//                 c_l.push_back({vector_list.dist(i, neighbour), neighbour});
-//             } else {
-//                 c_r.push_back({vector_list.dist(i, neighbour), neighbour});
-//             }
-//         }
-//         for (size_t j = i - std::min(i, d); j < i; j++) {
-//             c_l.push_back({vector_list.dist(i, j), j});
-//         }
-//         for (size_t j = i + 1; j < std::min(i + d, n); j++) {
-//             c_r.push_back({vector_list.dist(i, j), j});
-//         }
-
-//         std::ranges::sort(
-//             c_l, [&](auto&& x, auto&& y) { return x.second > y.second; });
-//         std::ranges::sort(
-//             c_r, [&](auto&& x, auto&& y) { return x.second < y.second; });
-
-//         c_l.erase(std::begin(std::ranges::unique(c_l)), c_l.end());
-//         c_r.erase(std::begin(std::ranges::unique(c_r)), c_r.end());
-
-//         size_t candidate_size = 0;
-//         if (output_tag) {
-//             Timer::start("prune");
-//             candidate_size = c_l.size() + c_r.size();
-//         }
-
-//         c_l = prune(c_l);
-//         c_r = prune(c_r);
-
-//         total_degree += c_l.size() + c_r.size();
-
-//         if (output_tag) {
-//             auto t = Timer::end("prune");
-//             spdlog::info(
-//                 "Build progress: {}/{} ({:.2f}%), prune time cost {}, "
-//                 "candidate size {} -> {}",
-//                 i + 1, vector_list.size(), (i + 1) * 100.0 /
-//                 vector_list.size(), t, candidate_size, c_l.size() +
-//                 c_r.size());
-//         }
-
-//         g.add_neighbours(
-//             i, std::array{c_l, c_r} | std::views::join |
-//                    std::views::transform([&](auto& x) { return x.second; }));
-//     }
-
-//     Searcher searcher(vector_list, g);
-//     std::vector<std::vector<std::pair<T, size_t>>> routing_path(n);
-//     std::vector<size_t> cnt(n + 1, 0);
-//     for (size_t i = 0; i < n; i++) {
-//         bool output_tag = (i + 1) % step == 0 || i == n;
-//         searcher.beam_search(center, 1, i, 20, &routing_path[i]);
-//         for (auto [d, id] : routing_path[i]) {
-//             ++cnt[id];
-//         }
-//         if (output_tag) {
-//             spdlog::info(
-//                 "Routing progress: {}/{} ({:.2f}%), cand = {}, now routing "
-//                 "path = {}",
-//                 i + 1, n, (i + 1) * 100.0 / n, routing_path[i].size(),
-//                 routing_path[i].size());
-//         }
-//     }
-
-//     spdlog::info("Start reorganize the routing edges...");
-//     for (size_t i = 1; i <= n; i++) {
-//         cnt[i] += cnt[i - 1];
-//     }
-//     std::vector<std::pair<T, size_t>> all_routing_path(cnt[n]);
-//     for (size_t i = 0; i < n; i++) {
-//         for (auto [d, id] : routing_path[i]) {
-//             all_routing_path[--cnt[id]] = {d, i};
-//         }
-//     }
-//     routing_path.clear(), routing_path.shrink_to_fit();
-
-//     spdlog::info("Start prunning the routing edges...");
-//     size_t total_add = 0;
-//     for (size_t i = 0; i < n; i++) {
-//         bool output_tag = (i + 1) % 10 == 0 || i == n;
-//         std::vector<size_t> valid;
-//         if (cnt[i + 1] - cnt[i] > 10000) {
-//             spdlog::warn("Warning: node {} has too many routing edges {}", i,
-//                          cnt[i + 1] - cnt[i]);
-//         }
-//         for (size_t j = cnt[i]; j < cnt[i + 1] && j < cnt[i] + 50000; j++) {
-//             auto [d, to] = all_routing_path[j];
-//             if (to < i && check_valid({d, i}, c_left[i])) {
-//                 c_left[i].push_back({d, to}), valid.push_back(to);
-//             } else if (to > i && check_valid({d, i}, c_right[i])) {
-//                 c_right[i].push_back({d, to}), valid.push_back(to);
-//             }
-//         }
-//         g.add_neighbours(i, valid);
-//         total_add += valid.size();
-
-//         if (output_tag) {
-//             static auto last_time =
-//             std::chrono::high_resolution_clock::now(); auto now =
-//             std::chrono::high_resolution_clock::now(); auto duration =
-//                 std::chrono::duration_cast<std::chrono::milliseconds>(now -
-//                                                                       last_time)
-//                     .count();
-//             if (duration > 1000 || ((i + 1) % step == 0 || i + 1 == n)) {
-//                 last_time = now;
-//                 spdlog::info(
-//                     "Prune routing progress: {}/{} ({:.2f}%), cand = {},
-//                     total " "add "
-//                     "{} edges",
-//                     i + 1, n, (i + 1) * 100.0 / n, valid.size(), total_add);
-//             }
-//         }
-//     }
-
-//     spdlog::info("average degree {:.2f}", total_degree * 1.0 / n);
-//     spdlog::info("Build finished.");
-//     return g;
-// }
 
 template <typename T>
 std::vector<std::pair<T, size_t>> Builder<T>::prune(

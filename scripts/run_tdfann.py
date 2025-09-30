@@ -4,7 +4,7 @@ import sys
 exec_path = "../build/linux/x86_64/release/TDFANN"
 
 k = 500
-beam_size = 120
+beam_size = 140
 range_step = 500
 qnumber = 10
 dataset_file = "/mnt/win-dai/Vectors/sift/sift_base.fvecs"

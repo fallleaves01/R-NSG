@@ -51,13 +51,17 @@ class GraphIndex {
 };
 
 struct TDData {
-    size_t label, banned_id;
+    size_t label;
+    // size_t banned_id;
 };
 
-inline GraphIndex<TDData>::Node to_node(size_t to,
-                                        size_t label,
-                                        size_t banned_id) {
-    return GraphIndex<TDData>::Node{to, TDData{label, banned_id}};
+// inline GraphIndex<TDData>::Node to_node(size_t to,
+//                                         size_t label,
+//                                         size_t banned_id) {
+//     return GraphIndex<TDData>::Node{to, TDData{label, banned_id}};
+// }
+inline GraphIndex<TDData>::Node to_node(size_t to, size_t label) {
+    return GraphIndex<TDData>::Node{to, TDData{label}};
 }
 
 class TDGraphIndexBase : public GraphIndex<TDData> {
