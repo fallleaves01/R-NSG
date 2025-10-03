@@ -1,9 +1,9 @@
 #pragma once
 #include <PCH.hpp>
 
+#include <IO/TypeIO.hpp>
 #include <Vector/Concepts.hpp>
 #include <nlohmann/json.hpp>
-#include <IO/TypeIO.hpp>
 
 namespace TDFANN {
 
@@ -39,7 +39,7 @@ class VectorList {
 
    private:
     Eigen::MatrixXf vectors;
-    std::vector<T> sqrs;  // 用于存储平方和
+    std::vector<T> sqrs;     // 用于存储平方和
     unsigned dimension = 0;  // 向量维度
 };
 
@@ -76,13 +76,14 @@ void VectorList<T>::load(const std::string& filename) {
 
 template <typename T>
 void VectorList<T>::reorder(const std::vector<size_t>& order) {
-    auto tmp = std::make_unique<float[]>(vectors.size() * dimension);
+    assert(order.size() == size());
+    Eigen::MatrixXf tmp = vectors;
+    auto tmp_s = sqrs;
     for (size_t i = 0; i < order.size(); i++) {
-        std::copy_n(vectors.col(order[i]).data(), dimension,
-                    tmp.get() + i * dimension);
+        vectors.col(i) = tmp.col(order[i]);
+        sqrs[i] = tmp_s[order[i]];
     }
-    std::move(tmp.get(), tmp.get() + vectors.size() * dimension,
-              vectors.data());
+    spdlog::info("reorder done");
 }
 
 // calculation operations
