@@ -30,6 +30,7 @@ class VectorList {
     Vector::VectorType<T> mean() const;
     template <typename Op>
     T sqr_sub_2dot(size_t, const Op&) const;
+    void reorder(const std::vector<size_t>& order);
 
     // struct operations
     auto operator[](size_t index) const { return vectors.col(index); }
@@ -71,6 +72,17 @@ void VectorList<T>::load(const std::string& filename) {
     vectors.resize(dimension, n);
     IO::read_fvecs(fin, dimension, vectors.data());
     init_sqrs();
+}
+
+template <typename T>
+void VectorList<T>::reorder(const std::vector<size_t>& order) {
+    auto tmp = std::make_unique<float[]>(vectors.size() * dimension);
+    for (size_t i = 0; i < order.size(); i++) {
+        std::copy_n(vectors.col(order[i]).data(), dimension,
+                    tmp.get() + i * dimension);
+    }
+    std::move(tmp.get(), tmp.get() + vectors.size() * dimension,
+              vectors.data());
 }
 
 // calculation operations
