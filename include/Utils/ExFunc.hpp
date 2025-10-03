@@ -13,7 +13,24 @@ U collect(std::ranges::range auto&& r) {
 template <typename T>
     requires std::ranges::range<T>
 auto to_vector(T&& r) {
-    return collect<std::vector<std::ranges::range_value_t<T>>>(r);
+    std::vector<std::ranges::range_value_t<T>> res;
+    std::ranges::copy(r, std::back_inserter(res));
+    return res;
+}
+
+template <typename T>
+std::pair<std::vector<size_t>, std::vector<size_t>> order_of_label(
+    const std::vector<T>& label) {
+    std::vector<size_t> index(label.size());
+    std::iota(index.begin(), index.end(), 0);
+    std::ranges::sort(index, [&](size_t i, size_t j) {
+        return std::pair{label[i], i} < std::pair{label[j], j};
+    });
+    std::vector<size_t> pos(label.size());
+    for (size_t i = 0; i < index.size(); i++) {
+        pos[index[i]] = i;
+    }
+    return {index, pos};
 }
 
 }  // namespace Utils
