@@ -25,7 +25,8 @@ class Builder {
     void init_header(Graph::TDGraphIndexBase&,
                      const Vector::VectorType<T>&,
                      const std::vector<size_t>& label,
-                     const std::vector<size_t>& order) const;
+                     const std::vector<size_t>& order,
+                     const Vector::VectorList<T>& vector_list) const;
 
    private:
     bool check_valid(const std::pair<T, size_t>&,
@@ -67,7 +68,8 @@ template <typename T>
 void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
                              const Vector::VectorType<T>& center,
                              const std::vector<size_t>& label,
-                             const std::vector<size_t>& order) const {
+                             const std::vector<size_t>& order, 
+                             const Vector::VectorList<T> &vector_list) const {
     spdlog::info("Init header");
     std::vector<std::pair<T, size_t>> pre_header;
     size_t lst_label = size_t(-1), header_size = 0, header_cnt = 0;
@@ -110,7 +112,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     for (size_t i = 0; i < index.size(); i++) {
         pos[index[i]] = i;
     }
-    init_header(g, center, label, index);
+    init_header(g, center, label, index, vector_list);
 
     size_t n = vector_list.size();
     const size_t step = (vector_list.size() + 99) / 100;
@@ -124,7 +126,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
 
         std::vector<std::pair<T, size_t>> c_left, c_right;
         for (const auto& neighbour : knng.get_neighbours_id(i)) {
-            if (neighbour < i) {
+            if (pos[neighbour] < pos[i]) {
                 c_left.push_back({vector_list.dist(i, neighbour), neighbour});
             } else {
                 c_right.push_back({vector_list.dist(i, neighbour), neighbour});
