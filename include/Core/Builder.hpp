@@ -2,6 +2,7 @@
 #include <PCH.hpp>
 
 #include <faiss/IndexNNDescent.h>
+#include <omp.h>
 #include <Core/Searcher.hpp>
 #include <Graph/GraphIndex.hpp>
 #include <Utils/Recorder.hpp>
@@ -111,10 +112,15 @@ Graph::TDGraphIndexBase Builder<T>::build(
     }
     init_header(g, center, label, index);
 
-    size_t n = vector_list.size(), total_degree = 0;
+    size_t n = vector_list.size();
     const size_t step = (vector_list.size() + 99) / 100;
+    std::atomic<size_t> build_step = 0, total_degree = 0;
+
+#pragma omp parallel for num_threads(32) schedule(dynamic)
     for (size_t i = 0; i < vector_list.size(); i++) {
-        bool output_tag = (i + 1) % step == 0 || i == vector_list.size();
+        size_t build_now = build_step.fetch_add(1) + 1;
+        bool output_tag =
+            build_now % step == 0 || build_now == vector_list.size();
 
         std::vector<std::pair<T, size_t>> c_left, c_right;
         for (const auto& neighbour : knng.get_neighbours_id(i)) {
