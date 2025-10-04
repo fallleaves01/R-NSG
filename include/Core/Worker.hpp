@@ -186,9 +186,7 @@ class Worker {
             Searcher searcher(vector_list, index);
             for (size_t i = 0; i < query_list.size(); i++) {
                 auto result = searcher.linear_search(query_list[i], qnumber);
-                std::ranges::copy(result | std::views::transform([](auto& p) {
-                                      return p.second;
-                                  }),
+                std::ranges::copy(result | std::views::transform(GET(second)),
                                   ans.begin() + i * qnumber);
                 if (i % 128 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
@@ -196,15 +194,28 @@ class Worker {
                 }
             }
         } else {
+            auto [ord, pos] = Utils::order_of_label(label);
+            auto dataset = vector_list;
+            dataset.reorder(ord);
+            auto sorted_label = Utils::sorted_vec(label);
+            assert(dataset[0] == vector_list[ord[0]]);
+            for (auto v : index.get_neighbours_id(0)) {
+                std::cout << v << " ";
+            }
+            std::cout << std::endl;
+            for (auto v : index.get_neighbours_id(pos[0])) {
+                std::cout << v << " ";
+            }
+            std::cout << std::endl;
             for (size_t i = 0; i < query_list.size(); i++) {
-                auto g_sub = index(label, qrange[i * 2], qrange[i * 2 + 1]);
-                Searcher searcher(vector_list, g_sub);
-                auto result = searcher.beam_search(
-                    query_list[i], qnumber, g_sub.get_header(), beam_size);
-                std::ranges::copy(result | std::views::transform([](auto& p) {
-                                      return p.second;
-                                  }),
-                                  ans.begin() + i * qnumber);
+                auto g_sub = index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
+                Searcher searcher(dataset, g_sub);
+                auto result =
+                    searcher.beam_search(query_list[i], qnumber,
+                                         g_sub.get_header(), beam_size) |
+                    std::views::transform(
+                        [&](auto x) { return ord[x.second]; });
+                std::ranges::copy(result, ans.begin() + i * qnumber);
                 if (i % 1024 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
                                  query_list.size());

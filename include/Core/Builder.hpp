@@ -25,7 +25,7 @@ class Builder {
     void init_header(Graph::TDGraphIndexBase&,
                      const Vector::VectorType<T>&,
                      const std::vector<size_t>& label,
-                     const std::vector<size_t>& order,
+                     const std::ranges::range auto&& order,
                      const Vector::VectorList<T>& vector_list) const;
 
    private:
@@ -55,10 +55,9 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k,
     index.verbose = verbose;
     index.add(vector_list.size(), data.data());
     for (size_t i = 0; i < vector_list.size(); i++) {
-        graph.add_neighbours(
-            i, index.nndescent.final_graph | std::views::drop(i * k) |
-                   std::views::take(k) |
-                   std::views::transform([&](size_t id) { return id; }));
+        graph.add_neighbours(i, index.nndescent.final_graph |
+                                    std::views::drop(i * k) |
+                                    std::views::take(k));
     }
     spdlog::info("KNN train finished.");
     return graph;
@@ -68,28 +67,32 @@ template <typename T>
 void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
                              const Vector::VectorType<T>& center,
                              const std::vector<size_t>& label,
-                             const std::vector<size_t>& order, 
-                             const Vector::VectorList<T> &vector_list) const {
+                             const std::ranges::range auto&& order,
+                             const Vector::VectorList<T>& vector_list) const {
     spdlog::info("Init header");
     std::vector<std::pair<T, size_t>> pre_header;
     size_t lst_label = size_t(-1), header_size = 0, header_cnt = 0;
     for (auto i : order) {
+        if (label[i] != lst_label && lst_label != size_t(-1)) {
+            if (pre_header.size() > 20) {
+                pre_header.resize(20);
+            }
+            header_size += pre_header.size(), header_cnt++;
+            g.append_header(lst_label,
+                            pre_header | std::views::transform(GET(second)));
+        }
         auto now = std::pair{vector_list.dist(i, center), i};
         while (!pre_header.empty() && pre_header[0].first >= now.first) {
             pre_header.erase(pre_header.begin());
         }
         pre_header.insert(pre_header.begin(), now);
-        if (label[i] != lst_label) {
-            if (pre_header.size() > 20) {
-                pre_header.resize(20);
-            }
-            header_size += pre_header.size(), header_cnt++;
-            g.append_header(
-                label[i], pre_header | std::views::transform(
-                                           [](auto&& x) { return x.second; }));
-        }
         lst_label = label[i];
     }
+    if (pre_header.size() > 20) {
+        pre_header.resize(20);
+    }
+    header_size += pre_header.size(), header_cnt++;
+    g.append_header(lst_label, pre_header | std::views::transform(GET(second)));
     spdlog::info("Init header done, header averange size {}",
                  (double)header_size / header_cnt);
 }
@@ -104,51 +107,53 @@ Graph::TDGraphIndexBase Builder<T>::build(
     Graph::TDGraphIndexBase g(vector_list.size());
     auto center = vector_list.mean();
 
-    std::vector<size_t> index(label.size()), pos(label.size());
-    std::iota(index.begin(), index.end(), 0);
-    std::ranges::sort(index.begin(), index.end(), [&](size_t i, size_t j) {
-        return std::pair{label[i], i} < std::pair{label[j], j};
-    });
-    for (size_t i = 0; i < index.size(); i++) {
-        pos[index[i]] = i;
-    }
-    init_header(g, center, label, index, vector_list);
+    std::vector<size_t> index, pos;
+    std::tie(index, pos) = Utils::order_of_label(label);
+    auto sorted_label = Utils::sorted_vec(label);
+    auto dataset = vector_list;
+    dataset.reorder(index);
+    init_header(g, center, sorted_label, std::views::iota(0ul, label.size()), dataset);
 
-    size_t n = vector_list.size();
-    const size_t step = (vector_list.size() + 99) / 100;
+    size_t n = dataset.size();
+    const size_t step = (dataset.size() + 99) / 100;
     std::atomic<size_t> build_step = 0, total_degree = 0;
 
 #pragma omp parallel for num_threads(32) schedule(dynamic)
-    for (size_t i = 0; i < vector_list.size(); i++) {
+    for (size_t i = 0; i < dataset.size(); i++) {
         size_t build_now = build_step.fetch_add(1) + 1;
-        bool output_tag =
-            build_now % step == 0 || build_now == vector_list.size();
+        bool output_tag = build_now % step == 0 || build_now == dataset.size();
 
         std::vector<std::pair<T, size_t>> c_left, c_right;
-        for (const auto& neighbour : knng.get_neighbours_id(i)) {
-            if (pos[neighbour] < pos[i]) {
-                c_left.push_back({vector_list.dist(i, neighbour), neighbour});
+        for (const auto& neighbour :
+             knng.get_neighbours_id(i) |
+                 std::views::transform([&](size_t x) { return pos[x]; })) {
+            if (neighbour < i) {
+                c_left.push_back({0, neighbour});
             } else {
-                c_right.push_back({vector_list.dist(i, neighbour), neighbour});
+                c_right.push_back({0, neighbour});
             }
         }
-        for (size_t j = pos[i] - std::min(pos[i], range_step); j < pos[i];
-             j++) {
-            c_left.push_back({vector_list.dist(i, index[j]), index[j]});
+        for (size_t j = i - std::min(i, range_step); j < i; j++) {
+            c_left.push_back({0, j});
         }
-        for (size_t j = pos[i] + 1; j < std::min(pos[i] + range_step, n); j++) {
-            c_right.push_back({vector_list.dist(i, index[j]), index[j]});
+        for (size_t j = i + 1; j < std::min(i + range_step, n); j++) {
+            c_right.push_back({0, j});
         }
 
-        std::ranges::sort(c_left, [&](auto&& x, auto&& y) {
-            return pos[x.second] > pos[y.second];
-        });
-        std::ranges::sort(c_right, [&](auto&& x, auto&& y) {
-            return pos[x.second] < pos[y.second];
-        });
-
-        c_left.erase(std::begin(std::ranges::unique(c_left)), c_left.end());
-        c_right.erase(std::begin(std::ranges::unique(c_right)), c_right.end());
+        std::ranges::sort(c_left, std::greater<std::pair<T, size_t>>{});
+        std::ranges::sort(c_right);
+        c_left.erase(std::ranges::unique(c_left).begin(), c_left.end());
+        c_right.erase(std::ranges::unique(c_right).begin(), c_right.end());
+        auto l_dis =
+            dataset.dist_all(i, c_left | std::views::transform(GET(second)));
+        auto r_dis =
+            dataset.dist_all(i, c_right | std::views::transform(GET(second)));
+        for (size_t j = 0; j < c_left.size(); j++) {
+            c_left[j].first = l_dis[j];
+        }
+        for (size_t j = 0; j < c_right.size(); j++) {
+            c_right[j].first = r_dis[j];
+        }
 
         size_t candidate_size = 0;
         if (output_tag) {
@@ -164,45 +169,27 @@ Graph::TDGraphIndexBase Builder<T>::build(
 
         if (output_tag) {
             auto t = Timer::end("prune");
-            auto sub_prune = [&](auto& c) {
-                std::vector<bool> tag(c.size());
-                int res = 0;
-                for (size_t i = 0; i < c.size(); i++) {
-                    for (size_t j = i + 1; j < c.size(); j++) {
-                        if (c[i].first > c[j].first &&
-                            c[i].first >
-                                vector_list.dist(c[i].second, c[j].second)) {
-                            tag[i] = true;
-                            break;
-                        }
-                    }
-                    res += !tag[i];
-                }
-                return res;
-            };
             spdlog::info(
                 "Build progress: {}/{} ({:.2f}%), prune time cost {}, "
-                "candidate size {} -> {} -> {}",
-                i + 1, vector_list.size(), (i + 1) * 100.0 / vector_list.size(),
-                t, candidate_size, c_left.size() + c_right.size(),
-                sub_prune(c_left) + sub_prune(c_right));
+                "candidate size {} -> {}",
+                i + 1, dataset.size(), (i + 1) * 100.0 / dataset.size(), t,
+                candidate_size, c_left.size() + c_right.size());
         }
 
         g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_left[x].second;
-                                    return Graph::to_node(pid, label[pid]);
+                                    return Graph::to_node(pid, sorted_label[pid]);
                                 }) |
                                 std::views::reverse);
         g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_right[x].second;
-                                    return Graph::to_node(pid, label[pid]);
+                                    return Graph::to_node(pid, sorted_label[pid]);
                                 }) |
                                 std::views::reverse);
     }
-    spdlog::info("average degree {:.2f}",
-                 total_degree * 1.0 / vector_list.size());
+    spdlog::info("average degree {:.2f}", total_degree * 1.0 / dataset.size());
     spdlog::info("Build finished.");
     return g;
 }
