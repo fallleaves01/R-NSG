@@ -26,6 +26,12 @@ auto to_vector(T&& r) {
 }
 
 template <typename T>
+std::vector<T> sorted_vec(std::vector<T> vec) {
+    std::ranges::sort(vec);
+    return vec;
+}
+
+template <typename T>
 std::pair<std::vector<size_t>, std::vector<size_t>> order_of_label(
     const std::vector<T>& label) {
     std::vector<size_t> index(label.size());
