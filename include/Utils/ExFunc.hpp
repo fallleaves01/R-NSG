@@ -2,6 +2,13 @@
 
 #include <PCH.hpp>
 
+#define GET(member)                                                         \
+    [](auto&& x)                                                            \
+        noexcept(noexcept((std::forward<decltype(x)>(x).member)))           \
+        -> decltype(auto) {                                                 \
+            return std::forward<decltype(x)>(x).member;                     \
+        }
+
 namespace TDFANN {
 namespace Utils {
 

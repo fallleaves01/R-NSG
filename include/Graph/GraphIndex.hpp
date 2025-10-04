@@ -4,6 +4,7 @@
 
 #include <Graph/Concepts.hpp>
 #include <IO/TypeIO.hpp>
+#include <Utils/ExFunc.hpp>
 
 namespace TDFANN {
 
@@ -40,8 +41,7 @@ class GraphIndex {
         return edges[node];
     }
     IndexList auto get_neighbours_id(size_t node) const {
-        return get_neighbours(node) |
-               std::views::transform([](auto x) { return x.to; });
+        return get_neighbours(node) | std::views::transform(GET(to));
     }
     bool save(std::ofstream& fout) const { return IO::save(fout, edges); }
     bool load(std::ifstream& fin) { return IO::load(fin, edges); }
@@ -94,8 +94,7 @@ class TDGraphIndexBase : public GraphIndex<TDData> {
                    });
         }
         IndexList auto get_neighbours_id(size_t node) const {
-            return get_neighbours(node) |
-                   std::views::transform([](auto x) { return x.to; });
+            return get_neighbours(node) | std::views::transform(GET(to));
         }
         auto get_header() const {
             return base.get_header(header_id) |

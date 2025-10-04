@@ -133,7 +133,7 @@ std::vector<std::pair<T, size_t>> Searcher<T, G>::beam_search(
                                            }));
         std::vector<T> dists = dataset.dist_all(
             goal,
-            neighbours | std::views::transform([](auto x) { return x.to; }));
+            neighbours | std::views::transform(GET(to)));
         size_t dist_id = 0;
         total += dists.size();
         // phmap::flat_hash_set<size_t> prunned;
