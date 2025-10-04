@@ -9,26 +9,26 @@ namespace Utils {
 class DynamicBitset {
    public:
     using B = uint64_t;
-    constexpr size_t size_per_bit() const;
+    constexpr unsigned size_per_bit() const;
 
-    DynamicBitset(size_t);
-    bool at(size_t) const;
-    bool operator[](size_t);
-    void set(size_t);
-    void unset(size_t);
-    size_t find_first() const;
-    size_t find_next(size_t index) const;
+    DynamicBitset(unsigned);
+    bool at(unsigned) const;
+    bool operator[](unsigned);
+    void set(unsigned);
+    void unset(unsigned);
+    unsigned find_first() const;
+    unsigned find_next(unsigned index) const;
 
     class iterator {
        public:
         iterator& operator++();
         iterator operator++(int);
-        iterator(DynamicBitset&, size_t);
+        iterator(DynamicBitset&, unsigned);
         std::strong_ordering operator<=>(const iterator&) const;
 
        private:
         DynamicBitset& bitset;
-        size_t index;
+        unsigned index;
     };
 
     iterator begin();
@@ -37,51 +37,51 @@ class DynamicBitset {
     bool load(std::ifstream&);
 
    private:
-    void expand(size_t);
+    void expand(unsigned);
     std::vector<B> bits;
 };
 
-inline DynamicBitset::DynamicBitset(size_t size)
+inline DynamicBitset::DynamicBitset(unsigned size)
     : bits((size + size_per_bit() - 1) / (size_per_bit()), 0) {}
 
-constexpr size_t DynamicBitset::size_per_bit() const {
+constexpr unsigned DynamicBitset::size_per_bit() const {
     return sizeof(B) * 8;
 }
 
-inline bool DynamicBitset::at(size_t index) const {
+inline bool DynamicBitset::at(unsigned index) const {
     if (index < bits.size() * size_per_bit()) {
-        size_t bit_index = index / size_per_bit();
-        size_t bit_offset = index % size_per_bit();
+        unsigned bit_index = index / size_per_bit();
+        unsigned bit_offset = index % size_per_bit();
         return (bits[bit_index] >> bit_offset) & 1;
     }
     throw std::out_of_range("Index out of range");
 }
 
-inline bool DynamicBitset::operator[](size_t index) {
+inline bool DynamicBitset::operator[](unsigned index) {
     expand(index);
     return (bits[index / size_per_bit()] >> (index % size_per_bit())) & 1;
 }
 
-inline void DynamicBitset::set(size_t index) {
+inline void DynamicBitset::set(unsigned index) {
     expand(index);
     bits[index / size_per_bit()] |= (B(1) << (index % size_per_bit()));
 }
 
-inline void DynamicBitset::unset(size_t index) {
+inline void DynamicBitset::unset(unsigned index) {
     expand(index);
     bits[index / size_per_bit()] &= ~(B(1) << (index % size_per_bit()));
 }
 
-inline size_t DynamicBitset::find_first() const {
-    for (size_t i = 0; i < bits.size(); ++i) {
+inline unsigned DynamicBitset::find_first() const {
+    for (unsigned i = 0; i < bits.size(); ++i) {
         if (bits[i] != 0) {
             return i * size_per_bit() + std::countr_zero(bits[i]);
         }
     }
-    return size_t(-1);
+    return unsigned(-1);
 }
 
-inline size_t DynamicBitset::find_next(size_t index) const {
+inline unsigned DynamicBitset::find_next(unsigned index) const {
     ++index;
     if (index < bits.size() * size_per_bit()) {
         B rv = bits[index] >> (index % size_per_bit());
@@ -97,10 +97,10 @@ inline size_t DynamicBitset::find_next(size_t index) const {
             index += size_per_bit();
         }
     }
-    return size_t(-1);
+    return unsigned(-1);
 }
 
-inline DynamicBitset::iterator::iterator(DynamicBitset& b, size_t id) : bitset(b), index(id) {}
+inline DynamicBitset::iterator::iterator(DynamicBitset& b, unsigned id) : bitset(b), index(id) {}
 
 inline DynamicBitset::iterator& DynamicBitset::iterator::operator++() {
     index = bitset.find_next(index);
@@ -125,7 +125,7 @@ inline DynamicBitset::iterator DynamicBitset::begin() {
 }
 
 inline DynamicBitset::iterator DynamicBitset::end() {
-    return iterator(*this, size_t(-1));
+    return iterator(*this, unsigned(-1));
 }
 
 inline bool DynamicBitset::save(std::ofstream &fout) const {
@@ -142,7 +142,7 @@ inline bool DynamicBitset::load(std::ifstream &fin) {
     return IO::load(fin, bits);
 }
 
-inline void DynamicBitset::expand(size_t index) {
+inline void DynamicBitset::expand(unsigned index) {
     if (index >= bits.size() * size_per_bit()) {
         bits.resize(index / size_per_bit() + 1, 0);
     }

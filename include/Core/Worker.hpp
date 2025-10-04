@@ -154,9 +154,9 @@ class Worker {
         }
         auto label = IO::load_json_to_vec(label_file);
         auto qrange = IO::load_json_to_vec(qrange_file);
-        std::vector<size_t> ans(query_list.size() * qnumber);
-        std::vector<size_t> node_id(label.size());
-        std::ranges::sort(node_id, [&](size_t x, size_t y) {
+        std::vector<unsigned> ans(query_list.size() * qnumber);
+        std::vector<unsigned> node_id(label.size());
+        std::ranges::sort(node_id, [&](unsigned x, unsigned y) {
             return std::pair{label[x], x} < std::pair{label[y], y};
         });
 
@@ -168,7 +168,7 @@ class Worker {
 
         // auto mn_dis = dist_center[0];
         // header.push_back(0);
-        // for (size_t i = 0; i < query_list.size(); i++) {
+        // for (unsigned i = 0; i < query_list.size(); i++) {
         //     if (dist_center[i] < mn_dis) {
         //         mn_dis = dist_center[i];
         //         header.clear();
@@ -177,7 +177,7 @@ class Worker {
         //         header.push_back(i);
         //     }
         // }
-        // for (size_t i = 0; i < header.size(); i++) {
+        // for (unsigned i = 0; i < header.size(); i++) {
         //     std::cout << header[i] << " ";
         // }
         // std::cout << std::endl;
@@ -189,7 +189,7 @@ class Worker {
         Timer::start("Query");
         if (brute) {
             Searcher searcher(vector_list, index);
-            for (size_t i = 0; i < query_list.size(); i++) {
+            for (unsigned i = 0; i < query_list.size(); i++) {
                 auto result = searcher.linear_search(query_list[i], qnumber);
                 std::ranges::copy(result | std::views::transform(GET(second)),
                                   ans.begin() + i * qnumber);
@@ -199,7 +199,7 @@ class Worker {
                 }
             }
         } else {
-            for (size_t i = 0; i < query_list.size(); i++) {
+            for (unsigned i = 0; i < query_list.size(); i++) {
                 auto g_sub =
                     index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
                 Searcher searcher(dataset, g_sub);
@@ -219,18 +219,18 @@ class Worker {
         auto time = Timer::end("Query");
         spdlog::info(
             "average cmps: {:.4f}",
-            Recorder<size_t>::read("total_visited") * 1.0 / query_list.size());
+            Recorder<unsigned>::read("total_visited") * 1.0 / query_list.size());
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
         if (!groundtruth_file.empty()) {
             auto gt = IO::load_json_to_vec(groundtruth_file);
-            size_t correct = 0;
-            for (size_t i = 0; i < query_list.size(); i++) {
-                phmap::flat_hash_map<float, size_t> answer_cnt;
-                for (size_t j = i * qnumber; j < (i + 1) * qnumber; j++) {
+            unsigned correct = 0;
+            for (unsigned i = 0; i < query_list.size(); i++) {
+                phmap::flat_hash_map<float, unsigned> answer_cnt;
+                for (unsigned j = i * qnumber; j < (i + 1) * qnumber; j++) {
                     answer_cnt[vector_list.dist2(ans[j], query_list[i])]++;
                 }
-                for (size_t j = i * qnumber; j < (i + 1) * qnumber; j++) {
+                for (unsigned j = i * qnumber; j < (i + 1) * qnumber; j++) {
                     auto now = vector_list.dist2(gt[j], query_list[i]);
                     if (answer_cnt[now] > 0) {
                         correct++;
@@ -255,7 +255,7 @@ class Worker {
     std::string knng_file;
     std::string qrange_file;
     std::string label_file;
-    size_t k, beam_size, range_step, qnumber;
+    unsigned k, beam_size, range_step, qnumber;
 };
 
 }  // namespace TDFANN

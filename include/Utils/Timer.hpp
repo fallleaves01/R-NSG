@@ -8,7 +8,7 @@ class Timer {
     static void start(const std::string& s) {
         start_time[s] = std::chrono::high_resolution_clock::now();
     }
-    static size_t end(const std::string& s) {
+    static int64_t end(const std::string& s) {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - start_time[s])
             .count();

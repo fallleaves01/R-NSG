@@ -32,15 +32,15 @@ std::vector<T> sorted_vec(std::vector<T> vec) {
 }
 
 template <typename T>
-std::pair<std::vector<size_t>, std::vector<size_t>> order_of_label(
+std::pair<std::vector<unsigned>, std::vector<unsigned>> order_of_label(
     const std::vector<T>& label) {
-    std::vector<size_t> index(label.size());
+    std::vector<unsigned> index(label.size());
     std::iota(index.begin(), index.end(), 0);
-    std::ranges::sort(index, [&](size_t i, size_t j) {
+    std::ranges::sort(index, [&](unsigned i, unsigned j) {
         return std::pair{label[i], i} < std::pair{label[j], j};
     });
-    std::vector<size_t> pos(label.size());
-    for (size_t i = 0; i < index.size(); i++) {
+    std::vector<unsigned> pos(label.size());
+    for (unsigned i = 0; i < index.size(); i++) {
         pos[index[i]] = i;
     }
     return {index, pos};

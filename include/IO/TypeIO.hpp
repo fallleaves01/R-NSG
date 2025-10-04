@@ -29,7 +29,7 @@ bool save(std::ostream& fout, const T& obj) {
         fout.write(reinterpret_cast<const char*>(&obj), sizeof(T));
         return fout.good();
     } else if constexpr (StandardContainer<T>) {
-        size_t size = obj.size();
+        unsigned size = obj.size();
         if (!save(fout, size)) {
             return false;
         }
@@ -55,12 +55,12 @@ bool load(std::istream& fin, T& obj) {
         fin.read(reinterpret_cast<char*>(&obj), sizeof(T));
         return fin.good();
     } else if constexpr (StandardContainer<T>) {
-        size_t size;
+        unsigned size;
         if (!load(fin, size)) {
             return false;
         }
         std::vector<typename T::value_type> temp(size);
-        for (size_t i = 0; i < size; ++i) {
+        for (unsigned i = 0; i < size; ++i) {
             if (!load(fin, temp[i])) {
                 return false;
             }
@@ -86,7 +86,7 @@ inline std::pair<unsigned, unsigned> get_fvecs_size(std::ifstream& fin) {
     fin.read((char*)&dimension, sizeof(unsigned));
     fin.seekg(0, std::ios::end);
     std::ios::pos_type ss = fin.tellg();
-    size_t file_size = ss;
+    unsigned file_size = ss;
     unsigned n = file_size / (dimension + 1) / sizeof(float);
     fin.seekg(0, std::ios::beg);
     spdlog::info("Vector dimension: {}, size: {}", dimension, n);
@@ -110,7 +110,7 @@ void read_fvecs(std::ifstream& fin, unsigned dimension, T* data) {
     }
 }
 
-inline std::vector<size_t> load_json_to_vec(const std::string& filename) {
+inline std::vector<unsigned> load_json_to_vec(const std::string& filename) {
     std::ifstream fin(filename);
     if (!fin.good()) {
         spdlog::error("Failed to open json file: {}", filename);
@@ -122,7 +122,7 @@ inline std::vector<size_t> load_json_to_vec(const std::string& filename) {
         spdlog::error("JSON file does not contain an array: {}", filename);
         throw std::runtime_error("JSON file does not contain an array");
     }
-    std::vector<size_t> result;
+    std::vector<unsigned> result;
     result.reserve(j.size());
     for (const auto& item : j) {
         if (!item.is_number_unsigned()) {
@@ -130,7 +130,7 @@ inline std::vector<size_t> load_json_to_vec(const std::string& filename) {
             throw std::runtime_error(
                 "JSON array contains non-unsigned integer values");
         }
-        result.push_back(item.get<size_t>());
+        result.push_back(item.get<unsigned>());
     }
     return result;
 }

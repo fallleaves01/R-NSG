@@ -9,7 +9,7 @@ namespace Vector {
 /// @concept vector_like
 /// @brief 定义向量类类型的要求
 template <typename T>
-concept VectorLike = requires(const T& v, size_t index) {
+concept VectorLike = requires(const T& v, unsigned index) {
     // 必须支持 operator[] 访问
     { v[index] } -> std::convertible_to<double>;
 
@@ -24,7 +24,7 @@ concept VectorLike = requires(const T& v, size_t index) {
 /// @concept indexable
 /// @brief 定义支持索引操作的类型
 template <typename T>
-concept indexable = requires(T container, size_t index) {
+concept indexable = requires(T container, unsigned index) {
     { container[index] } -> std::convertible_to<double>;
 };
 

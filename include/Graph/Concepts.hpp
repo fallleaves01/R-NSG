@@ -7,11 +7,11 @@ namespace Graph {
 
 template <typename T>
 concept IndexList = std::ranges::range<T> &&
-                    std::convertible_to<std::ranges::range_value_t<T>, size_t>;
+                    std::convertible_to<std::ranges::range_value_t<T>, unsigned>;
 
 // 检查是否有get_neighbours方法
 template <typename T>
-concept GraphLike = requires(const T& obj, size_t id) {
+concept GraphLike = requires(const T& obj, unsigned id) {
     { obj.get_neighbours_id(id) } -> IndexList;
 };
 

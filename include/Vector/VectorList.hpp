@@ -22,20 +22,20 @@ class VectorList {
     // calculation operations
     void init_sqrs();
     template <typename Op>
-    T dist2(size_t source, const Op& goal) const;
+    T dist2(unsigned source, const Op& goal) const;
     template <typename Op>
-    T dist(size_t source, const Op& goal) const;
+    T dist(unsigned source, const Op& goal) const;
     template <typename Op, std::ranges::range R_op>
     std::vector<T> dist_all(const Op& source, const R_op& goal) const;
     Vector::VectorType<T> mean() const;
     template <typename Op>
-    T sqr_sub_2dot(size_t, const Op&) const;
-    void reorder(const std::vector<size_t>& order);
+    T sqr_sub_2dot(unsigned, const Op&) const;
+    void reorder(const std::vector<unsigned>& order);
 
     // struct operations
-    auto operator[](size_t index) const { return vectors.col(index); }
-    size_t size() const { return vectors.cols(); }
-    size_t dim() const { return dimension; }
+    auto operator[](unsigned index) const { return vectors.col(index); }
+    unsigned size() const { return vectors.cols(); }
+    unsigned dim() const { return dimension; }
 
    private:
     Eigen::MatrixXf vectors;
@@ -75,11 +75,11 @@ void VectorList<T>::load(const std::string& filename) {
 }
 
 template <typename T>
-void VectorList<T>::reorder(const std::vector<size_t>& order) {
+void VectorList<T>::reorder(const std::vector<unsigned>& order) {
     assert(order.size() == size());
     Eigen::MatrixXf tmp = vectors;
     auto tmp_s = sqrs;
-    for (size_t i = 0; i < order.size(); i++) {
+    for (unsigned i = 0; i < order.size(); i++) {
         vectors.col(i) = tmp.col(order[i]);
         sqrs[i] = tmp_s[order[i]];
     }
@@ -90,19 +90,19 @@ void VectorList<T>::reorder(const std::vector<size_t>& order) {
 template <typename T>
 void VectorList<T>::init_sqrs() {
     sqrs.resize(size());
-    for (size_t i = 0; i < size(); ++i) {
+    for (unsigned i = 0; i < size(); ++i) {
         sqrs[i] = vectors.col(i).squaredNorm();
     }
 }
 
 template <typename T>
 template <typename Op>
-T VectorList<T>::dist2(size_t source, const Op& goal) const {
+T VectorList<T>::dist2(unsigned source, const Op& goal) const {
     static_assert(
-        std::is_convertible_v<Op, size_t> || DotProductWithVectorType<Op, T>,
-        "Op must be convertible to size_t or a vector-like type");
+        std::is_convertible_v<Op, unsigned> || DotProductWithVectorType<Op, T>,
+        "Op must be convertible to unsigned or a vector-like type");
 
-    if constexpr (std::is_convertible_v<Op, size_t>) {
+    if constexpr (std::is_convertible_v<Op, unsigned>) {
         return sqrs[source] + sqrs[goal] -
                2 * vectors.col(source).dot(vectors.col(goal));
     } else {
@@ -112,10 +112,10 @@ T VectorList<T>::dist2(size_t source, const Op& goal) const {
 
 template <typename T>
 template <typename Op>
-T VectorList<T>::dist(size_t source, const Op& goal) const {
+T VectorList<T>::dist(unsigned source, const Op& goal) const {
     static_assert(
-        std::is_convertible_v<Op, size_t> || DotProductWithVectorType<Op, T>,
-        "Op must be convertible to size_t or a vector-like type");
+        std::is_convertible_v<Op, unsigned> || DotProductWithVectorType<Op, T>,
+        "Op must be convertible to unsigned or a vector-like type");
 
     return dist2(source, goal);
 }
@@ -125,16 +125,16 @@ template <typename Op, std::ranges::range R_op>
 std::vector<T> VectorList<T>::dist_all(const Op& source,
                                        const R_op& goal) const {
     using Item = decltype(*std::ranges::begin(goal));
-    constexpr int O_id = std::is_convertible_v<Op, size_t>
+    constexpr int O_id = std::is_convertible_v<Op, unsigned>
                              ? 1
                              : (DotProductWithVectorType<Op, T> ? -1 : 0);
-    constexpr int I_id = std::is_convertible_v<Item, size_t>
+    constexpr int I_id = std::is_convertible_v<Item, unsigned>
                              ? 1
                              : (DotProductWithVectorType<Item, T> ? -1 : 0);
     static_assert(O_id != 0,
-                  "Op must be convertible to size_t or a vector-like type");
+                  "Op must be convertible to unsigned or a vector-like type");
     static_assert(I_id != 0,
-                  "Item must be convertible to size_t or a vector-like type");
+                  "Item must be convertible to unsigned or a vector-like type");
     static_assert(O_id != -1 || I_id != -1,
                   "At least one of Op or Item must be an index type");
 
@@ -157,7 +157,7 @@ template <typename T>
 Vector::VectorType<T> VectorList<T>::mean() const {
     Vector::VectorType<T> result(dimension);
     result.setZero();
-    for (size_t i = 0; i < size(); i++) {
+    for (unsigned i = 0; i < size(); i++) {
         result += vectors.col(i);
     }
     result /= size();
@@ -166,7 +166,7 @@ Vector::VectorType<T> VectorList<T>::mean() const {
 
 template <typename T>
 template <typename Op>
-T VectorList<T>::sqr_sub_2dot(size_t idx, const Op& vec) const {
+T VectorList<T>::sqr_sub_2dot(unsigned idx, const Op& vec) const {
     static_assert(DotProductWithVectorType<Op, T>,
                   "Op must support dot product with VectorType<T>");
     return sqrs[idx] - 2 * vectors.col(idx).dot(vec);
