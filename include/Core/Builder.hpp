@@ -29,11 +29,6 @@ class Builder {
                      const Vector::VectorList<T>& vector_list) const;
 
    private:
-    bool check_valid(const std::pair<T, size_t>&,
-                     const std::vector<std::pair<T, size_t>>&) const;
-    std::vector<std::pair<T, size_t>> prune(
-        const std::vector<std::pair<T, size_t>>&,
-        std::vector<size_t>* = nullptr) const;
     const Vector::VectorList<T>& vector_list;  // 向量列表
 };
 
@@ -61,6 +56,67 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(size_t k,
     }
     spdlog::info("KNN train finished.");
     return graph;
+}
+
+
+template <typename T>
+bool check_valid(const Vector::VectorList<T>& vector_list,
+                 const std::pair<T, size_t>& now,
+                 const std::vector<std::pair<T, size_t>>& result) {
+    auto [d_now, i_now] = now;
+    for (auto [d_lst, i_lst] : result) {
+        if ((d_now > d_lst && d_now > vector_list.dist(i_now, i_lst)) ||
+            i_lst == i_now) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename T>
+std::vector<std::pair<T, size_t>> prune(
+    const Vector::VectorList<T>& vector_list,
+    const std::vector<std::pair<T, size_t>>& candidates,
+    std::vector<size_t>* tag = nullptr) {
+    std::vector<std::pair<T, size_t>> result;
+    if (tag == nullptr) {
+        for (size_t i = 0; i < candidates.size(); i++) {
+            if (check_valid(vector_list, candidates[i], result)) {
+                result.push_back(candidates[i]);
+            }
+        }
+    } else {
+        auto& suf = *tag;
+        suf.clear();
+        for (size_t i = 0; i < candidates.size(); i++) {
+            auto [d_now, i_now] = candidates[i];
+            bool append = true;
+            for (size_t j = 0; j < result.size(); j++) {
+                auto [d_lst, i_lst] = result[j];
+                if (d_now > d_lst || suf[j] == size_t(-1)) {
+                    auto d_ij = vector_list.dist(i_now, i_lst);
+                    if (d_now > d_lst && d_now > d_ij) {
+                        append = false;
+                        break;
+                    }
+                    if (suf[j] == size_t(-1) && d_lst > d_now && d_lst > d_ij) {
+                        suf[j] = i_now;
+                    }
+                }
+            }
+            if (!append) {
+                for (auto& x : suf) {
+                    if (x == i_now) {
+                        x = size_t(-1);
+                    }
+                }
+            } else {
+                result.push_back(candidates[i]);
+                suf.push_back(size_t(-1));
+            }
+        }
+    }
+    return result;
 }
 
 template <typename T>
@@ -112,11 +168,19 @@ Graph::TDGraphIndexBase Builder<T>::build(
     auto sorted_label = Utils::sorted_vec(label);
     auto dataset = vector_list;
     dataset.reorder(index);
-    init_header(g, center, sorted_label, std::views::iota(0ul, label.size()), dataset);
+    init_header(g, center, sorted_label, std::views::iota(0ul, label.size()),
+                dataset);
 
     size_t n = dataset.size();
     const size_t step = (dataset.size() + 99) / 100;
     std::atomic<size_t> build_step = 0, total_degree = 0;
+
+    if (dataset[0] != vector_list[index[0]]) {
+        throw std::runtime_error("Reorder error in Builder::build");
+    }
+    if (dataset.dist(0, 1) != vector_list.dist(index[0], index[1])) {
+        throw std::runtime_error("Reorder error in Builder::build");
+    }
 
 #pragma omp parallel for num_threads(32) schedule(dynamic)
     for (size_t i = 0; i < dataset.size(); i++) {
@@ -125,7 +189,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
 
         std::vector<std::pair<T, size_t>> c_left, c_right;
         for (const auto& neighbour :
-             knng.get_neighbours_id(i) |
+             knng.get_neighbours_id(index[i]) |
                  std::views::transform([&](size_t x) { return pos[x]; })) {
             if (neighbour < i) {
                 c_left.push_back({0, neighbour});
@@ -162,8 +226,8 @@ Graph::TDGraphIndexBase Builder<T>::build(
         }
 
         // std::vector<size_t> l_bid, r_bid;
-        c_left = prune(c_left);
-        c_right = prune(c_right);
+        c_left = prune(dataset, c_left);
+        c_right = prune(dataset, c_right);
 
         total_degree += c_left.size() + c_right.size();
 
@@ -179,78 +243,21 @@ Graph::TDGraphIndexBase Builder<T>::build(
         g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_left[x].second;
-                                    return Graph::to_node(pid, sorted_label[pid]);
+                                    return Graph::to_node(pid,
+                                                          sorted_label[pid]);
                                 }) |
                                 std::views::reverse);
         g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
                                 std::views::transform([&](size_t x) {
                                     size_t pid = c_right[x].second;
-                                    return Graph::to_node(pid, sorted_label[pid]);
+                                    return Graph::to_node(pid,
+                                                          sorted_label[pid]);
                                 }) |
                                 std::views::reverse);
     }
     spdlog::info("average degree {:.2f}", total_degree * 1.0 / dataset.size());
     spdlog::info("Build finished.");
     return g;
-}
-
-template <typename T>
-bool Builder<T>::check_valid(
-    const std::pair<T, size_t>& now,
-    const std::vector<std::pair<T, size_t>>& result) const {
-    auto [d_now, i_now] = now;
-    for (auto [d_lst, i_lst] : result) {
-        if ((d_now > d_lst && d_now > vector_list.dist(i_now, i_lst)) ||
-            i_lst == i_now) {
-            return false;
-        }
-    }
-    return true;
-}
-
-template <typename T>
-std::vector<std::pair<T, size_t>> Builder<T>::prune(
-    const std::vector<std::pair<T, size_t>>& candidates,
-    std::vector<size_t>* tag) const {
-    std::vector<std::pair<T, size_t>> result;
-    if (tag == nullptr) {
-        for (size_t i = 0; i < candidates.size(); i++) {
-            if (check_valid(candidates[i], result)) {
-                result.push_back(candidates[i]);
-            }
-        }
-    } else {
-        auto& suf = *tag;
-        suf.clear();
-        for (size_t i = 0; i < candidates.size(); i++) {
-            auto [d_now, i_now] = candidates[i];
-            bool append = true;
-            for (size_t j = 0; j < result.size(); j++) {
-                auto [d_lst, i_lst] = result[j];
-                if (d_now > d_lst || suf[j] == size_t(-1)) {
-                    auto d_ij = vector_list.dist(i_now, i_lst);
-                    if (d_now > d_lst && d_now > d_ij) {
-                        append = false;
-                        break;
-                    }
-                    if (suf[j] == size_t(-1) && d_lst > d_now && d_lst > d_ij) {
-                        suf[j] = i_now;
-                    }
-                }
-            }
-            if (!append) {
-                for (auto& x : suf) {
-                    if (x == i_now) {
-                        x = size_t(-1);
-                    }
-                }
-            } else {
-                result.push_back(candidates[i]);
-                suf.push_back(size_t(-1));
-            }
-        }
-    }
-    return result;
 }
 
 }  // namespace TDFANN

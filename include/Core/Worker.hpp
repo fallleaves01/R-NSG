@@ -181,6 +181,11 @@ class Worker {
         //     std::cout << header[i] << " ";
         // }
         // std::cout << std::endl;
+        auto [ord, pos] = Utils::order_of_label(label);
+        auto dataset = vector_list;
+        dataset.reorder(ord);
+        auto sorted_label = Utils::sorted_vec(label);
+        assert(dataset[0] == vector_list[ord[0]]);
         Timer::start("Query");
         if (brute) {
             Searcher searcher(vector_list, index);
@@ -194,32 +199,21 @@ class Worker {
                 }
             }
         } else {
-            auto [ord, pos] = Utils::order_of_label(label);
-            auto dataset = vector_list;
-            dataset.reorder(ord);
-            auto sorted_label = Utils::sorted_vec(label);
-            assert(dataset[0] == vector_list[ord[0]]);
-            for (auto v : index.get_neighbours_id(0)) {
-                std::cout << v << " ";
-            }
-            std::cout << std::endl;
-            for (auto v : index.get_neighbours_id(pos[0])) {
-                std::cout << v << " ";
-            }
-            std::cout << std::endl;
             for (size_t i = 0; i < query_list.size(); i++) {
-                auto g_sub = index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
+                auto g_sub =
+                    index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
                 Searcher searcher(dataset, g_sub);
-                auto result =
-                    searcher.beam_search(query_list[i], qnumber,
-                                         g_sub.get_header(), beam_size) |
-                    std::views::transform(
-                        [&](auto x) { return ord[x.second]; });
-                std::ranges::copy(result, ans.begin() + i * qnumber);
+                auto result = searcher.beam_search(
+                    query_list[i], qnumber, g_sub.get_header(), beam_size);
+                std::ranges::copy(result | std::views::transform(GET(second)),
+                                  ans.begin() + i * qnumber);
                 if (i % 1024 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
                                  query_list.size());
                 }
+            }
+            for (auto& i : ans) {
+                i = ord[i];
             }
         }
         auto time = Timer::end("Query");
