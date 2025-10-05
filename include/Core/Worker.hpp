@@ -160,27 +160,42 @@ class Worker {
             return std::pair{label[x], x} < std::pair{label[y], y};
         });
 
-        // auto header = index.get_header(vector_list.size() - 1);
-        // header.clear();
-        // auto center = vector_list.mean();
-        // auto dist_center = vector_list.dist_all(
-        //     center, std::views::iota(0u, vector_list.size()));
+        // auto a = vector_list[0], b = vector_list[1];
+        // const float *a_ptr = a.data(), *b_ptr = b.data();
+        // int dim = vector_list.dim();
+        // using VecA = Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, 1>,
+        //                         Eigen::Aligned64>;
+        // float fulla = VecA(a_ptr, dim).squaredNorm();
+        // float fullb = VecA(b_ptr, dim).squaredNorm();
+        // std::vector<float> r_a(4), r_b(4);
+        // for (int i = 0; i < 4; i++) {
+        //     r_a[i] = VecA(a_ptr + i * 32, 32).squaredNorm();
+        //     r_b[i] = VecA(b_ptr + i * 32, 32).squaredNorm();
+        // }
+        // float resb = 0, resa = 0;
+        // size_t ta = 0, tb = 0;
+        // for (int x = 0; x < 1000000; x++) {
+        //     auto start = std::chrono::high_resolution_clock::now();
+        //     for (int i = 0; i < 4; i++) {
+        //         resb += r_a[i] + r_b[i] -
+        //                 VecA(a_ptr + i * 32, 32).dot(VecA(b_ptr + i * 32, 32));
+        //     }
+        //     auto midx = std::chrono::high_resolution_clock::now();
+        //     tb += std::chrono::duration_cast<std::chrono::nanoseconds>(midx -
+        //                                                                start)
+        //               .count();
+        //     auto mid = std::chrono::high_resolution_clock::now();
+        //     resa += fulla + fullb - VecA(a_ptr, dim).dot(VecA(b_ptr, dim));
+        //     auto end = std::chrono::high_resolution_clock::now();
+        //     ta +=
+        //         std::chrono::duration_cast<std::chrono::nanoseconds>(end - mid)
+        //             .count();
+        // }
+        // spdlog::info("Dot product time: {} ns", ta);
+        // spdlog::info("32-dim dot product time: {} ns", tb);
+        // spdlog::info("Result: {} {}", resa, resb);
+        // exit(0);
 
-        // auto mn_dis = dist_center[0];
-        // header.push_back(0);
-        // for (unsigned i = 0; i < query_list.size(); i++) {
-        //     if (dist_center[i] < mn_dis) {
-        //         mn_dis = dist_center[i];
-        //         header.clear();
-        //     }
-        //     if (dist_center[i] == mn_dis) {
-        //         header.push_back(i);
-        //     }
-        // }
-        // for (unsigned i = 0; i < header.size(); i++) {
-        //     std::cout << header[i] << " ";
-        // }
-        // std::cout << std::endl;
         auto [ord, pos] = Utils::order_of_label(label);
         auto dataset = vector_list;
         dataset.reorder(ord);
@@ -217,11 +232,12 @@ class Worker {
             }
         }
         auto time = Timer::end("Query");
-        spdlog::info(
-            "average cmps: {:.4f}",
-            Recorder<unsigned>::read("total_visited") * 1.0 / query_list.size());
+        spdlog::info("average cmps: {:.4f}",
+                     Recorder<unsigned>::read("total_visited") * 1.0 /
+                         query_list.size());
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
+        spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
         if (!groundtruth_file.empty()) {
             auto gt = IO::load_json_to_vec(groundtruth_file);
             unsigned correct = 0;
