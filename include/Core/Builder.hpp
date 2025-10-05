@@ -39,6 +39,7 @@ class Builder {
 template <typename T>
 Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
                                                          bool verbose) const {
+    Timer::start("knng_time");
     Graph::GraphIndex<std::monostate> graph(vector_list.size());
     std::vector<T> data(vector_list.size() * vector_list.dim());
     for (unsigned i = 0; i < vector_list.size(); i++) {
@@ -47,6 +48,7 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
     spdlog::info("start KNN train with size {}, dim {}", vector_list.size(),
                  vector_list.dim());
     faiss::IndexNNDescentFlat index(vector_list.dim(), k);
+    index.nndescent.iter = 15;
     index.verbose = verbose;
     index.add(vector_list.size(), data.data());
     for (unsigned i = 0; i < vector_list.size(); i++) {
@@ -55,9 +57,9 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
                                     std::views::take(k));
     }
     spdlog::info("KNN train finished.");
+    spdlog::info("KNNG build time: {} s", Timer::end("knng_time") / 1e9);
     return graph;
 }
-
 
 template <typename T>
 bool check_valid(const Vector::VectorList<T>& vector_list,
@@ -99,7 +101,8 @@ std::vector<std::pair<T, unsigned>> prune(
                         append = false;
                         break;
                     }
-                    if (suf[j] == unsigned(-1) && d_lst > d_now && d_lst > d_ij) {
+                    if (suf[j] == unsigned(-1) && d_lst > d_now &&
+                        d_lst > d_ij) {
                         suf[j] = i_now;
                     }
                 }
@@ -160,6 +163,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     const std::vector<unsigned>& label) const {
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
+    Timer::start("build_time");
     Graph::TDGraphIndexBase g(vector_list.size());
     auto center = vector_list.mean();
 
@@ -182,7 +186,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
         throw std::runtime_error("Reorder error in Builder::build");
     }
 
-#pragma omp parallel for num_threads(32) schedule(dynamic)
+#pragma omp parallel for num_threads(128) schedule(dynamic)
     for (unsigned i = 0; i < dataset.size(); i++) {
         unsigned build_now = build_step.fetch_add(1) + 1;
         bool output_tag = build_now % step == 0 || build_now == dataset.size();
@@ -255,6 +259,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     }
     spdlog::info("average degree {:.2f}", total_degree * 1.0 / dataset.size());
     spdlog::info("Build finished.");
+    spdlog::info("Index build time: {} s", Timer::end("build_time") / 1e9);
     return g;
 }
 
