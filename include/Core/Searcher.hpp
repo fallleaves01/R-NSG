@@ -23,7 +23,7 @@ class Searcher {
      */
     template <typename GoalId>
     std::vector<std::pair<T, unsigned>> linear_search(const GoalId& goal,
-                                                    unsigned k);
+                                                      unsigned k);
 
     /**
      * @brief return top k nearest neighbours
@@ -58,8 +58,9 @@ template <typename GoalId>
 std::vector<std::pair<T, unsigned>> Searcher<T, G>::linear_search(
     const GoalId& goal,
     unsigned k) {
-    static_assert(IndexOrVector<GoalId, T>,
-                  "GoalId must be convertible to unsigned or a vector-like type");
+    static_assert(
+        IndexOrVector<GoalId, T>,
+        "GoalId must be convertible to unsigned or a vector-like type");
 
     std::priority_queue<std::pair<T, unsigned>> heap;
     for (unsigned i = 0; i < dataset.size(); i++) {
@@ -85,76 +86,61 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
     StartNode start_node,
     unsigned beam_size,
     std::vector<std::pair<T, unsigned>>* candidates_ptr) {
-    static_assert(IndexOrVector<GoalId, T>,
-                  "GoalId must be convertible to unsigned or a vector-like type");
+    static_assert(
+        IndexOrVector<GoalId, T>,
+        "GoalId must be convertible to unsigned or a vector-like type");
 
     phmap::flat_hash_map<unsigned, T> vis_dis;
 
-    struct Node {
-        T dis;
-        bool visited;
-        unsigned id;
-    };
-
-    std::vector<Node> candidates(beam_size, {T(1e100), true, unsigned(-1)});
+    unsigned offset = dataset.size();
+    static std::vector<std::pair<T, unsigned>> candidates(beam_size),
+        neighbours;
+    candidates.clear(), candidates.reserve(beam_size);
+    neighbours.clear(), neighbours.reserve(beam_size * 2);
     if constexpr (std::convertible_to<StartNode, unsigned>) {
-        candidates[0] = {dataset.dist(start_node, goal), false,
-                         unsigned(start_node)};
+        candidates.push_back({0, unsigned(start_node)});
     } else {
-        unsigned id = 0;
         for (auto it : start_node) {
-            if (id >= beam_size) {
-                candidates.push_back(
-                    {dataset.dist(it, goal), false, unsigned(it)});
-            } else {
-                candidates[id++] = {dataset.dist(it, goal), false, unsigned(it)};
-            }
-        }
-        std::ranges::sort(candidates, [](const auto& a, const auto& b) {
-            return a.dis < b.dis;
-        });
-        if (candidates.size() > beam_size) {
-            candidates.resize(beam_size);
+            candidates.push_back({0, unsigned(it)});
         }
     }
+    dataset.dist_all_into(goal, candidates);
+    std::ranges::sort(candidates);
+    for (auto& [dis, id] : candidates) {
+        vis_dis[id] = dis;
+        id += offset;
+    }
+    candidates.resize(beam_size, {T(1e100), candidates[0].second - offset});
 
     unsigned total = 0;
-    for (unsigned uid = 0; uid < beam_size; uid++) {
-        if (candidates[uid].visited) [[unlikely]] {
+    for (int uid = 0; uid < (int)beam_size; uid++) {
+        if (candidates[uid].second < offset) {
             continue;  // 已处理过，跳过
         }
-        unsigned current_node = candidates[uid].id;
-        candidates[uid].visited = true;  // 标记为已处理
+        candidates[uid].second -= offset;  // 标记为已处理
+        unsigned current_node = candidates[uid].second;
 
         // 获取当前节点的邻居
-        auto neighbours = Utils::to_vector(graph.get_neighbours(current_node) |
-                                           std::views::filter([&](auto x) {
-                                               return !vis_dis.contains(x.to);
-                                           }));
-        std::vector<T> dists = dataset.dist_all(
-            goal,
-            neighbours | std::views::transform(GET(to)));
-        unsigned dist_id = 0;
-        total += dists.size();
-        // phmap::flat_hash_set<unsigned> prunned;
-        for (const auto& neighbour : neighbours) {
-            T dist = dists[dist_id++];
-            // T dist = dataset.sqr_sub_2dot(neighbour, goal);
-            if (dist < candidates.back().dis) [[unlikely]] {
-                // if constexpr (IsTDFG<G>) {
-                //     prunned.insert(neighbour.to);
-                //     if (prunned.contains(neighbour.data.banned_id)) {
-                //         --total;
-                //         continue;
-                //     }
-                // }
+        neighbours.clear();
+        std::ranges::copy(graph.get_neighbours(current_node) |
+                              std::views::filter([&](auto&& x) {
+                                  return !vis_dis.contains(x.to);
+                              }) |
+                              std::views::transform([&](auto&& x) {
+                                  return std::pair{T(0), x.to};
+                              }),
+                          std::back_inserter(neighbours));
+        dataset.dist_all_into_trunc(goal, neighbours, candidates.back().first);
+        total += neighbours.size();
+        for (const auto& [dist, nto] : neighbours) {
+            if (dist < candidates.back().first) {
                 candidates.pop_back();
                 auto it = std::partition_point(
                     candidates.begin(), candidates.end(),
-                    [&](const auto& a) { return a.dis < dist; });
-                uid = std::min(uid, (unsigned)(it - candidates.begin() - 1));
-                candidates.insert(it, {dist, false, neighbour.to});
-                vis_dis.insert({neighbour.to, dist});
+                    [&](const auto& a) { return a.first < dist; });
+                uid = std::min(uid, (int)(it - candidates.begin() - 1));
+                candidates.insert(it, {dist, nto + offset});
+                vis_dis.insert({nto, dist});
             }
         }
     }
@@ -169,11 +155,8 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
         }
     }
 
-    return Utils::to_vector(candidates |
-                            std::views::take(std::min(k, (unsigned)candidates.size())) |
-                            std::views::transform([](const auto& c) {
-                                return std::pair{c.dis, c.id};  // 提取节点索引
-                            }));
+    return Utils::to_vector(candidates | std::views::take(std::min(
+                                             k, (unsigned)candidates.size())));
 }
 
 }  // namespace TDFANN
