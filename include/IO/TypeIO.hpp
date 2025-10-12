@@ -86,7 +86,7 @@ inline std::pair<unsigned, unsigned> get_fvecs_size(std::ifstream& fin) {
     fin.read((char*)&dimension, sizeof(unsigned));
     fin.seekg(0, std::ios::end);
     std::ios::pos_type ss = fin.tellg();
-    unsigned file_size = ss;
+    size_t file_size = ss;
     unsigned n = file_size / (dimension + 1) / sizeof(float);
     fin.seekg(0, std::ios::beg);
     spdlog::info("Vector dimension: {}, size: {}", dimension, n);
