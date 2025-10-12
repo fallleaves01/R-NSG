@@ -63,7 +63,7 @@ namespace TDFANN {
 
 namespace Vector {
 
-const unsigned S = 64;
+const unsigned S = 128;
 
 // file operations
 template <typename T>
