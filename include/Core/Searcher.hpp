@@ -93,7 +93,7 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
     phmap::flat_hash_map<unsigned, T> vis_dis;
 
     unsigned offset = dataset.size();
-    static std::vector<std::pair<T, unsigned>> candidates(beam_size),
+    std::vector<std::pair<T, unsigned>> candidates(beam_size),
         neighbours;
     candidates.clear(), candidates.reserve(beam_size);
     neighbours.clear(), neighbours.reserve(beam_size * 2);
