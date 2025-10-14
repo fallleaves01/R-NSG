@@ -39,6 +39,7 @@ class Builder {
 template <typename T>
 Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
                                                          bool verbose) const {
+    omp_set_num_threads(4); 
     Timer::start("knng_time");
     Graph::GraphIndex<std::monostate> graph(vector_list.size());
     std::vector<T> data(vector_list.size() * vector_list.dim());
@@ -186,7 +187,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
         throw std::runtime_error("Reorder error in Builder::build");
     }
 
-#pragma omp parallel for num_threads(128) schedule(dynamic)
+#pragma omp parallel for num_threads(32) schedule(dynamic)
     for (unsigned i = 0; i < dataset.size(); i++) {
         unsigned build_now = build_step.fetch_add(1) + 1;
         bool output_tag = build_now % step == 0 || build_now == dataset.size();
@@ -243,19 +244,20 @@ Graph::TDGraphIndexBase Builder<T>::build(
                 i + 1, dataset.size(), (i + 1) * 100.0 / dataset.size(), t,
                 candidate_size, c_left.size() + c_right.size());
         }
+        c_left.insert(c_left.end(), c_right.begin(), c_right.end());
+        std::ranges::sort(c_left);
 
         g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
                                 std::views::transform([&](unsigned x) {
                                     unsigned pid = c_left[x].second;
                                     return Graph::to_node(pid);
-                                }) |
-                                std::views::reverse);
-        g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
-                                std::views::transform([&](unsigned x) {
-                                    unsigned pid = c_right[x].second;
-                                    return Graph::to_node(pid);
-                                }) |
-                                std::views::reverse);
+                                }));
+        // g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
+        //                         std::views::transform([&](unsigned x) {
+        //                             unsigned pid = c_right[x].second;
+        //                             return Graph::to_node(pid);
+        //                         }) |
+        //                         std::views::reverse);
     }
     spdlog::info("average degree {:.2f}", total_degree * 1.0 / dataset.size());
     spdlog::info("Build finished.");
