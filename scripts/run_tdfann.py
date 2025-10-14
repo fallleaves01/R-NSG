@@ -2,19 +2,42 @@ from subprocess import run
 import sys
 
 exec_path = "../build/linux/x86_64/release/TDFANN"
+dataset_list = ["sift", "wit", "tripclick", "yt_audio_all", "yt_rgb_all"]
+dataset = "sift"
 
-k = 1500
-beam_size = 40
+k = 300
+beam_size = 50
 range_step = 1500
+trunc_size = 50
 qnumber = 10
-dataset_file = "/mnt/win-dai/Vectors/sift/sift_base.fvecs"
-query_file = "/mnt/win-dai/Vectors/sift/sift_query.fvecs"
-result_file = "../test_data/sift_result_1000.bin"
-groundtruth_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/sif_gt_sel_6_1_100000_random_10.json"
-knng_file = "../test_data/knng_1500.graph"
-qrange_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/qrangesel_6_1_100000_random.json"
-label_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/attr_sel_1_100000_random.json"
-index_file = "../test_data/tdfg_1500.graph"
+s = 1 # selectivity 1->mix, 8->25%, 10->10% 19->1%
+knng_file = f"../test_data/knng_{dataset}_{k}.graph"
+index_file = f"../test_data/tdfg_{dataset}_{k}_{range_step}_new.graph"
+result_file = "../test_data/tmp.bin"
+groundtruth_file = f"/mnt/win-dai/Vectors/{dataset}/label/sel_1_100000_real/sif_gt_sel_{s}_1_100000_real_10.json"
+qrange_file = f"/mnt/win-dai/Vectors/{dataset}/label/sel_1_100000_real/qrangesel_{s}_1_100000_real.json"
+label_file = f"/mnt/win-dai/Vectors/{dataset}/label/sel_1_100000_real/attr_sel_1_100000_real.json"
+
+if dataset == "sift":
+    dataset_file = "/mnt/win-dai/Vectors/sift/sift_base.fvecs"
+    query_file = "/mnt/win-dai/Vectors/sift/sift_query.fvecs"
+    groundtruth_file = f"/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/sif_gt_sel_{s}_1_100000_random_10.json"
+    knng_file = f"../test_data/knng_{k}.graph"
+    qrange_file = f"/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/qrangesel_{s}_1_100000_random.json"
+    label_file = "/mnt/win-dai/Vectors/sift/label/sel_1_100000_random/attr_sel_1_100000_random.json"
+    index_file = f"../test_data/tdfg_{range_step}.graph"
+elif dataset == "wit":
+    dataset_file = "/mnt/win-dai/Vectors/wit/wit1M_embeddings.fvecs"
+    query_file = "/mnt/win-dai/Vectors/wit/wit1k_queries.fvecs"
+elif dataset == "tripclick":
+    dataset_file = "/mnt/win-dai/Vectors/tripclick/tripclick_base.fvecs"
+    query_file = "/mnt/win-dai/Vectors/tripclick/tripclick_query.fvecs"
+elif dataset == "yt_audio_all":
+    dataset_file = "/mnt/win-dai/Vectors/yt_audio_all/audio.fvecs"
+    query_file = "/mnt/win-dai/Vectors/yt_audio_all/query_audio.fvecs"
+elif dataset == "yt_rgb_all":
+    dataset_file = "/mnt/win-dai/Vectors/yt_rgb_all/rgb.fvecs"
+    query_file = "/mnt/win-dai/Vectors/yt_rgb_all/query_rgb.fvecs"
 
 knng_cmd = f"{exec_path} --verbose knng\
  --dataset_file {dataset_file}\
@@ -40,6 +63,7 @@ query_cmd = f"{exec_path} --verbose query\
  --beam_size {beam_size}\
  --result_file {result_file}\
  --groundtruth_file {groundtruth_file}\
+ --trunc_size {trunc_size}\
 "
 
 if sys.argv[1] == "build":
