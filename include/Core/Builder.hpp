@@ -14,12 +14,15 @@ namespace TDFANN {
 template <typename T>
 class Builder {
    public:
-    Builder(const Vector::VectorList<T>& data) : vector_list(data) {};
+    Builder(Vector::VectorList<T>& data) : vector_list(data) {};
     Graph::GraphIndex<std::monostate> nn_descent(unsigned k,
                                                  bool verbose = false) const;
+
+    // Warning: build function will reordere vector_list
     Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng,
                                   unsigned range_step,
-                                  const std::vector<unsigned>& label) const;
+                                  const std::vector<unsigned>& label);
+
     // Graph::TDGraphIndexBase build_routing(Graph::GraphLike auto&& knng,
     //                                       unsigned d) const;
     void init_header(Graph::TDGraphIndexBase&,
@@ -29,7 +32,7 @@ class Builder {
                      const Vector::VectorList<T>& vector_list) const;
 
    private:
-    const Vector::VectorList<T>& vector_list;  // 向量列表
+    Vector::VectorList<T>& vector_list;  // 向量列表
 };
 
 //>===========================================================<
@@ -39,7 +42,7 @@ class Builder {
 template <typename T>
 Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
                                                          bool verbose) const {
-    omp_set_num_threads(4); 
+    omp_set_num_threads(4);
     Timer::start("knng_time");
     Graph::GraphIndex<std::monostate> graph(vector_list.size());
     std::vector<T> data(vector_list.size() * vector_list.dim());
@@ -161,7 +164,7 @@ template <typename T>
 Graph::TDGraphIndexBase Builder<T>::build(
     Graph::GraphLike auto&& knng,
     unsigned range_step,
-    const std::vector<unsigned>& label) const {
+    const std::vector<unsigned>& label) {
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
     Timer::start("build_time");
@@ -171,7 +174,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     std::vector<unsigned> index, pos;
     std::tie(index, pos) = Utils::order_of_label(label);
     auto sorted_label = Utils::sorted_vec(label);
-    auto dataset = vector_list;
+    auto &dataset = vector_list;
     dataset.reorder(index);
     init_header(g, center, sorted_label, std::views::iota(0ul, label.size()),
                 dataset);
@@ -180,12 +183,12 @@ Graph::TDGraphIndexBase Builder<T>::build(
     const unsigned step = (dataset.size() + 99) / 100;
     std::atomic<unsigned> build_step = 0, total_degree = 0;
 
-    if (dataset[0] != vector_list[index[0]]) {
-        throw std::runtime_error("Reorder error in Builder::build");
-    }
-    if (dataset.dist(0, 1) != vector_list.dist(index[0], index[1])) {
-        throw std::runtime_error("Reorder error in Builder::build");
-    }
+    // if (dataset[0] != vector_list[index[0]]) {
+    //     throw std::runtime_error("Reorder error in Builder::build");
+    // }
+    // if (dataset.dist(0, 1) != vector_list.dist(index[0], index[1])) {
+    //     throw std::runtime_error("Reorder error in Builder::build");
+    // }
 
 #pragma omp parallel for num_threads(32) schedule(dynamic)
     for (unsigned i = 0; i < dataset.size(); i++) {

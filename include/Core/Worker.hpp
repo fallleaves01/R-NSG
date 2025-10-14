@@ -94,7 +94,8 @@ class Worker {
             ->required();
         query_cmd->add_option("-g,--groundtruth_file", groundtruth_file,
                               "Path to the groundtruth file");
-        query_cmd->add_option("-t,--trunc_size", trunc_size, "trunc size")->required();
+        query_cmd->add_option("-t,--trunc_size", trunc_size, "trunc size")
+            ->required();
         return query_cmd;
     }
 
@@ -164,7 +165,8 @@ class Worker {
         // auto a = vector_list[0], b = vector_list[1];
         // const float *a_ptr = a.data(), *b_ptr = b.data();
         // int dim = vector_list.dim();
-        // using VecA = Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, 1>,
+        // using VecA = Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic,
+        // 1>,
         //                         Eigen::Aligned64>;
         // float fulla = VecA(a_ptr, dim).squaredNorm();
         // float fullb = VecA(b_ptr, dim).squaredNorm();
@@ -179,7 +181,8 @@ class Worker {
         //     auto start = std::chrono::high_resolution_clock::now();
         //     for (int i = 0; i < 4; i++) {
         //         resb += r_a[i] + r_b[i] -
-        //                 VecA(a_ptr + i * 32, 32).dot(VecA(b_ptr + i * 32, 32));
+        //                 VecA(a_ptr + i * 32, 32).dot(VecA(b_ptr + i * 32,
+        //                 32));
         //     }
         //     auto midx = std::chrono::high_resolution_clock::now();
         //     tb += std::chrono::duration_cast<std::chrono::nanoseconds>(midx -
@@ -189,7 +192,8 @@ class Worker {
         //     resa += fulla + fullb - VecA(a_ptr, dim).dot(VecA(b_ptr, dim));
         //     auto end = std::chrono::high_resolution_clock::now();
         //     ta +=
-        //         std::chrono::duration_cast<std::chrono::nanoseconds>(end - mid)
+        //         std::chrono::duration_cast<std::chrono::nanoseconds>(end -
+        //         mid)
         //             .count();
         // }
         // spdlog::info("Dot product time: {} ns", ta);
@@ -198,12 +202,10 @@ class Worker {
         // exit(0);
 
         auto [ord, pos] = Utils::order_of_label(label);
-        auto dataset = vector_list;
-        dataset.reorder(ord);
+        auto& dataset = vector_list;
         auto sorted_label = Utils::sorted_vec(label);
-        assert(dataset[0] == vector_list[ord[0]]);
-        Timer::start("Query");
         if (brute) {
+            Timer::start("Query");
             Searcher searcher(vector_list, index);
             for (unsigned i = 0; i < query_list.size(); i++) {
                 auto result = searcher.linear_search(query_list[i], qnumber);
@@ -215,21 +217,21 @@ class Worker {
                 }
             }
         } else {
+            dataset.reorder(ord);
+            Timer::start("Query");
             for (unsigned i = 0; i < query_list.size(); i++) {
                 auto g_sub =
                     index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
                 Searcher searcher(dataset, g_sub);
-                auto result = searcher.beam_search(
-                    query_list[i], qnumber, g_sub.get_header(), beam_size, trunc_size);
+                auto result = searcher.beam_search(query_list[i], qnumber,
+                                                   g_sub.get_header(),
+                                                   beam_size, trunc_size);
                 std::ranges::copy(result | std::views::transform(GET(second)),
                                   ans.begin() + i * qnumber);
                 if (i % 1024 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
                                  query_list.size());
                 }
-            }
-            for (auto& i : ans) {
-                i = ord[i];
             }
         }
         auto time = Timer::end("Query");
@@ -241,6 +243,9 @@ class Worker {
         spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
         if (!groundtruth_file.empty()) {
             auto gt = IO::load_json_to_vec(groundtruth_file);
+            for (auto &i : gt) {
+                i = pos[i];
+            }
             unsigned correct = 0;
             for (unsigned i = 0; i < query_list.size(); i++) {
                 phmap::flat_hash_map<float, unsigned> answer_cnt;
