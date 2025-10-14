@@ -4,6 +4,8 @@
 #include <concepts>
 #include <cstddef>
 #include <type_traits>
+#include <variant>
+#include <span>
 
 // 算法
 #include <algorithm>

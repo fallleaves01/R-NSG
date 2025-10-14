@@ -40,7 +40,9 @@ bool save(std::ostream& fout, const T& obj) {
         }
         return true;
     } else {
-        static_assert(false, "Type T is not serializable");
+        std::cerr << "Type T is not serializable" << std::endl;
+        exit(-1);
+        // static_assert(false, "Type T is not serializable");
     }
 }
 
@@ -68,7 +70,9 @@ bool load(std::istream& fin, T& obj) {
         obj = T(temp.begin(), temp.end());
         return true;
     } else {
-        static_assert(false, "Type T is not deserializable");
+        std::cerr << "Type T is not deserializable" << std::endl;
+        exit(-1);
+        // static_assert(false, "Type T is not deserializable");
     }
 }
 
