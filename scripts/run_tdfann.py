@@ -3,7 +3,7 @@ import sys
 
 exec_path = "../build/linux/x86_64/release/TDFANN"
 dataset_list = ["sift", "wit", "tripclick", "yt_audio_all", "yt_rgb_all"]
-dataset = "sift"
+dataset = "tripclick"
 
 k = 300
 beam_size = 50
