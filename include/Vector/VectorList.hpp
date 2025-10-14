@@ -173,7 +173,7 @@ void VectorList<T>::dist_all_into_trunc(const Op& source,
                              ? 1
                              : (DotProductWithVectorType<Op, T> ? -1 : 0);
     const int d = dimension / S;
-    if (d < 4) {
+    if (d < 32) {
         dist_all_into(source, p);
         return;
     }

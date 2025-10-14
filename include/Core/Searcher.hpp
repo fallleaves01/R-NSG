@@ -40,6 +40,7 @@ class Searcher {
         unsigned k,
         StartNode start_node,
         unsigned beam_size,
+        unsigned trunc_size,
         std::vector<std::pair<T, unsigned>>* candidates_ptr = nullptr);
 
    private:
@@ -85,6 +86,7 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
     unsigned k,
     StartNode start_node,
     unsigned beam_size,
+    unsigned trunc_size,
     std::vector<std::pair<T, unsigned>>* candidates_ptr) {
     static_assert(
         IndexOrVector<GoalId, T>,
@@ -93,8 +95,7 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
     phmap::flat_hash_map<unsigned, T> vis_dis;
 
     unsigned offset = dataset.size();
-    std::vector<std::pair<T, unsigned>> candidates(beam_size),
-        neighbours;
+    std::vector<std::pair<T, unsigned>> candidates(beam_size), neighbours;
     candidates.clear(), candidates.reserve(beam_size);
     neighbours.clear(), neighbours.reserve(beam_size * 2);
     if constexpr (std::convertible_to<StartNode, unsigned>) {
@@ -126,6 +127,7 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
                               std::views::filter([&](auto&& x) {
                                   return !vis_dis.contains(x.to);
                               }) |
+                              std::views::take(trunc_size) |
                               std::views::transform([&](auto&& x) {
                                   return std::pair{T(0), x.to};
                               }),

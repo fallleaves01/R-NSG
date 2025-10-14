@@ -94,6 +94,7 @@ class Worker {
             ->required();
         query_cmd->add_option("-g,--groundtruth_file", groundtruth_file,
                               "Path to the groundtruth file");
+        query_cmd->add_option("-t,--trunc_size", trunc_size, "trunc size")->required();
         return query_cmd;
     }
 
@@ -219,7 +220,7 @@ class Worker {
                     index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
                 Searcher searcher(dataset, g_sub);
                 auto result = searcher.beam_search(
-                    query_list[i], qnumber, g_sub.get_header(), beam_size);
+                    query_list[i], qnumber, g_sub.get_header(), beam_size, trunc_size);
                 std::ranges::copy(result | std::views::transform(GET(second)),
                                   ans.begin() + i * qnumber);
                 if (i % 1024 == 0) {
@@ -271,7 +272,7 @@ class Worker {
     std::string knng_file;
     std::string qrange_file;
     std::string label_file;
-    unsigned k, beam_size, range_step, qnumber;
+    unsigned k, beam_size, range_step, qnumber, trunc_size;
 };
 
 }  // namespace TDFANN
