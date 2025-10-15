@@ -97,6 +97,16 @@ inline std::pair<unsigned, unsigned> get_fvecs_size(std::ifstream& fin) {
     return {n, dimension};
 }
 
+inline std::pair<unsigned, unsigned> get_u8bin_size(std::ifstream& fin) {
+    unsigned dimension = 0, n = 0;
+    fin.read((char*)&n, sizeof(unsigned));
+    fin.read((char*)&dimension, sizeof(unsigned));
+    std::cout << (fin.good() ? "Good" : "Bad") << std::endl;
+    fin.seekg(0, std::ios::beg);
+    spdlog::info("Vector dimension: {}, size: {}", n, dimension);
+    return {n, dimension};
+}
+
 template <typename T>
 void read_fvecs(std::ifstream& fin, unsigned dimension, T* data) {
     unsigned tmp, idx = 0;
@@ -112,6 +122,29 @@ void read_fvecs(std::ifstream& fin, unsigned dimension, T* data) {
             throw std::runtime_error("Inconsistent vector dimensions in file");
         }
     }
+}
+
+template <typename T>
+void read_u8bin(std::ifstream& fin, unsigned dimension, T* data) {
+    unsigned n, tmp;
+    fin.read(reinterpret_cast<char*>(&n), sizeof(unsigned));
+    fin.read(reinterpret_cast<char*>(&tmp), sizeof(unsigned));
+    spdlog::info("Reading {} vectors of dimension {}", n, tmp);
+    if (tmp != dimension) {
+        spdlog::error("Inconsistent vector dimensions");
+        throw std::runtime_error("Inconsistent vector dimensions in file");
+    }
+    auto buffer = std::make_unique<uint8_t[]>(dimension);
+    for (unsigned i = 0; i < n; i++) {
+        if (!fin.read(reinterpret_cast<char*>(buffer.get()), dimension * sizeof(uint8_t))) {
+            spdlog::error("Failed to read vector data from file");
+            throw std::runtime_error("Failed to read vector data from file");
+        }
+        for (unsigned j = 0; j < dimension; j++) {
+            data[i * dimension + j] = static_cast<T>(buffer[j]);
+        }
+    }
+    spdlog::info("Finished reading u8bin file");
 }
 
 inline std::vector<unsigned> load_json_to_vec(const std::string& filename) {
