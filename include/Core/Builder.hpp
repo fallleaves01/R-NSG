@@ -42,19 +42,15 @@ class Builder {
 template <typename T>
 Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
                                                          bool verbose) const {
-    omp_set_num_threads(4);
+    omp_set_num_threads(64);
     Timer::start("knng_time");
     Graph::GraphIndex<std::monostate> graph(vector_list.size());
-    std::vector<T> data(vector_list.size() * vector_list.dim());
-    for (unsigned i = 0; i < vector_list.size(); i++) {
-        std::ranges::copy(vector_list[i], data.begin() + i * vector_list.dim());
-    }
     spdlog::info("start KNN train with size {}, dim {}", vector_list.size(),
                  vector_list.dim());
     faiss::IndexNNDescentFlat index(vector_list.dim(), k);
-    index.nndescent.iter = 15;
+    // index.nndescent.iter = 15;
     index.verbose = verbose;
-    index.add(vector_list.size(), data.data());
+    index.add(vector_list.size(), vector_list.data());
     for (unsigned i = 0; i < vector_list.size(); i++) {
         graph.add_neighbours(i, index.nndescent.final_graph |
                                     std::views::drop(i * k) |
@@ -165,6 +161,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     Graph::GraphLike auto&& knng,
     unsigned range_step,
     const std::vector<unsigned>& label) {
+    omp_set_num_threads(64);
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
     Timer::start("build_time");
@@ -190,7 +187,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     //     throw std::runtime_error("Reorder error in Builder::build");
     // }
 
-#pragma omp parallel for num_threads(32) schedule(dynamic)
+#pragma omp parallel for num_threads(64) schedule(dynamic)
     for (unsigned i = 0; i < dataset.size(); i++) {
         unsigned build_now = build_step.fetch_add(1) + 1;
         bool output_tag = build_now % step == 0 || build_now == dataset.size();
@@ -225,6 +222,19 @@ Graph::TDGraphIndexBase Builder<T>::build(
         }
         for (unsigned j = 0; j < c_right.size(); j++) {
             c_right[j].first = r_dis[j];
+        }
+
+        if (c_left.size() > 300) {
+            std::nth_element(l_dis.begin(), l_dis.begin() + l_dis.size() / 4, l_dis.end());
+            T lim = l_dis[l_dis.size() / 4];
+            auto it = std::remove_if(c_left.begin() + 300, c_left.end(), [&](auto &&x) { return x.first > lim; });
+            c_left.erase(it, c_left.end());
+        }
+        if (c_right.size() > 300) {
+            std::nth_element(r_dis.begin(), r_dis.begin() + r_dis.size() / 4, r_dis.end());
+            T lim = r_dis[r_dis.size() / 4];
+            auto it = std::remove_if(c_right.begin() + 300, c_right.end(), [&](auto &&x) { return x.first > lim; });
+            c_right.erase(it, c_right.end());
         }
 
         unsigned candidate_size = 0;

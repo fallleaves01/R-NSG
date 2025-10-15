@@ -132,7 +132,7 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
                                   return std::pair{T(0), x.to};
                               }),
                           std::back_inserter(neighbours));
-        dataset.dist_all_into_trunc(goal, neighbours, candidates.back().first);
+        dataset.dist_all_into(goal, neighbours);
         total += neighbours.size();
         for (const auto& [dist, nto] : neighbours) {
             if (dist < candidates.back().first) {
@@ -147,7 +147,7 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
         }
     }
 
-    Recorder<unsigned>::add("total_visited", total);
+    // Recorder<unsigned>::add("total_visited", total);
 
     if (candidates_ptr != nullptr) {
         auto& c = *candidates_ptr;

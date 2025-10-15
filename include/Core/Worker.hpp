@@ -222,8 +222,10 @@ class Worker {
             for (unsigned i = 0; i < query_list.size(); i++) {
                 auto g_sub =
                     index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
+                // auto it = std::ranges::lower_bound(sorted_label, qrange[i * 2]) - sorted_label.begin();
                 Searcher searcher(dataset, g_sub);
                 auto result = searcher.beam_search(query_list[i], qnumber,
+                    // it,
                                                    g_sub.get_header(),
                                                    beam_size, trunc_size);
                 std::ranges::copy(result | std::views::transform(GET(second)),
