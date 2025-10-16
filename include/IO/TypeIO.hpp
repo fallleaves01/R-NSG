@@ -135,12 +135,12 @@ void read_u8bin(std::ifstream& fin, unsigned dimension, T* data) {
         throw std::runtime_error("Inconsistent vector dimensions in file");
     }
     auto buffer = std::make_unique<uint8_t[]>(dimension);
-    for (unsigned i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if (!fin.read(reinterpret_cast<char*>(buffer.get()), dimension * sizeof(uint8_t))) {
             spdlog::error("Failed to read vector data from file");
             throw std::runtime_error("Failed to read vector data from file");
         }
-        for (unsigned j = 0; j < dimension; j++) {
+        for (size_t j = 0; j < dimension; j++) {
             data[i * dimension + j] = static_cast<T>(buffer[j]);
         }
     }
