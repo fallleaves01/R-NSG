@@ -48,7 +48,7 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
     spdlog::info("start KNN train with size {}, dim {}", vector_list.size(),
                  vector_list.dim());
     faiss::IndexNNDescentFlat index(vector_list.dim(), k);
-    // index.nndescent.iter = 15;
+    index.nndescent.iter = 15;
     index.verbose = verbose;
     index.add(vector_list.size(), vector_list.data());
     for (unsigned i = 0; i < vector_list.size(); i++) {
@@ -224,18 +224,18 @@ Graph::TDGraphIndexBase Builder<T>::build(
             c_right[j].first = r_dis[j];
         }
 
-        if (c_left.size() > 300) {
-            std::nth_element(l_dis.begin(), l_dis.begin() + l_dis.size() / 4, l_dis.end());
-            T lim = l_dis[l_dis.size() / 4];
-            auto it = std::remove_if(c_left.begin() + 300, c_left.end(), [&](auto &&x) { return x.first > lim; });
-            c_left.erase(it, c_left.end());
-        }
-        if (c_right.size() > 300) {
-            std::nth_element(r_dis.begin(), r_dis.begin() + r_dis.size() / 4, r_dis.end());
-            T lim = r_dis[r_dis.size() / 4];
-            auto it = std::remove_if(c_right.begin() + 300, c_right.end(), [&](auto &&x) { return x.first > lim; });
-            c_right.erase(it, c_right.end());
-        }
+        // if (c_left.size() > 300) {
+        //     std::nth_element(l_dis.begin(), l_dis.begin() + l_dis.size() / 4, l_dis.end());
+        //     T lim = l_dis[l_dis.size() / 4];
+        //     auto it = std::remove_if(c_left.begin() + 300, c_left.end(), [&](auto &&x) { return x.first > lim; });
+        //     c_left.erase(it, c_left.end());
+        // }
+        // if (c_right.size() > 300) {
+        //     std::nth_element(r_dis.begin(), r_dis.begin() + r_dis.size() / 4, r_dis.end());
+        //     T lim = r_dis[r_dis.size() / 4];
+        //     auto it = std::remove_if(c_right.begin() + 300, c_right.end(), [&](auto &&x) { return x.first > lim; });
+        //     c_right.erase(it, c_right.end());
+        // }
 
         unsigned candidate_size = 0;
         if (output_tag) {
