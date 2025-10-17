@@ -20,7 +20,7 @@ class Builder {
 
     // Warning: build function will reordere vector_list
     Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng,
-                                  unsigned range_step,
+                                  unsigned range_step, unsigned ef_max,
                                   const std::vector<unsigned>& label);
 
     // Graph::TDGraphIndexBase build_routing(Graph::GraphLike auto&& knng,
@@ -51,7 +51,7 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
     index.nndescent.iter = 15;
     index.verbose = verbose;
     index.add(vector_list.size(), vector_list.data());
-    for (unsigned i = 0; i < vector_list.size(); i++) {
+    for (size_t i = 0; i < vector_list.size(); i++) {
         graph.add_neighbours(i, index.nndescent.final_graph |
                                     std::views::drop(i * k) |
                                     std::views::take(k));
@@ -78,13 +78,17 @@ bool check_valid(const Vector::VectorList<T>& vector_list,
 template <typename T>
 std::vector<std::pair<T, unsigned>> prune(
     const Vector::VectorList<T>& vector_list,
-    const std::vector<std::pair<T, unsigned>>& candidates,
+    const std::vector<std::pair<T, unsigned>>& candidates, 
+    unsigned ef_max = 1000,
     std::vector<unsigned>* tag = nullptr) {
     std::vector<std::pair<T, unsigned>> result;
     if (tag == nullptr) {
         for (unsigned i = 0; i < candidates.size(); i++) {
             if (check_valid(vector_list, candidates[i], result)) {
                 result.push_back(candidates[i]);
+                if (result.size() >= ef_max) {
+                    break;
+                }
             }
         }
     } else {
@@ -116,6 +120,9 @@ std::vector<std::pair<T, unsigned>> prune(
             } else {
                 result.push_back(candidates[i]);
                 suf.push_back(unsigned(-1));
+                if (result.size() >= ef_max) {
+                    break;
+                }
             }
         }
     }
@@ -159,7 +166,7 @@ void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
 template <typename T>
 Graph::TDGraphIndexBase Builder<T>::build(
     Graph::GraphLike auto&& knng,
-    unsigned range_step,
+    unsigned range_step, unsigned ef_max,
     const std::vector<unsigned>& label) {
     omp_set_num_threads(64);
     spdlog::info("Building TDF Graph Index, index size {}...",
@@ -244,8 +251,8 @@ Graph::TDGraphIndexBase Builder<T>::build(
         }
 
         // std::vector<unsigned> l_bid, r_bid;
-        c_left = prune(dataset, c_left);
-        c_right = prune(dataset, c_right);
+        c_left = prune(dataset, c_left, (ef_max + 1) / 2);
+        c_right = prune(dataset, c_right, (ef_max + 1) / 2);
 
         total_degree += c_left.size() + c_right.size();
 

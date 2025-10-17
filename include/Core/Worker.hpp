@@ -55,6 +55,10 @@ class Worker {
             ->add_option("-i,--index_file", index_file,
                          "Path to save the index")
             ->required();
+        build_cmd
+            ->add_option("-m,--ef_max", ef_max,
+                         "Max out edges while construction")
+            ->required();
         return build_cmd;
     }
 
@@ -134,7 +138,7 @@ class Worker {
             }
         }
         auto label = IO::load_json_to_vec(label_file);
-        auto g = builder.build(*knng_ptr, range_step, label);
+        auto g = builder.build(*knng_ptr, range_step, ef_max, label);
         std::ofstream fout(index_file);
         if (!fout.good() || !g.save(fout)) {
             spdlog::error("Failed to save index to {}", index_file);
@@ -156,7 +160,7 @@ class Worker {
         }
         auto label = IO::load_json_to_vec(label_file);
         auto qrange = IO::load_json_to_vec(qrange_file);
-        std::vector<unsigned> ans(query_list.size() * qnumber);
+        std::vector<unsigned> ans((size_t)query_list.size() * qnumber);
         std::vector<unsigned> node_id(label.size());
         std::ranges::sort(node_id, [&](unsigned x, unsigned y) {
             return std::pair{label[x], x} < std::pair{label[y], y};
@@ -206,12 +210,27 @@ class Worker {
         auto sorted_label = Utils::sorted_vec(label);
         if (brute) {
             Timer::start("Query");
-            Searcher searcher(vector_list, index);
+#pragma omp parallel for num_threads(64) schedule(dynamic)
             for (unsigned i = 0; i < query_list.size(); i++) {
-                auto result = searcher.linear_search(query_list[i], qnumber);
-                std::ranges::copy(result | std::views::transform(GET(second)),
-                                  ans.begin() + i * qnumber);
-                if (i % 128 == 0) {
+                std::priority_queue<std::pair<float, unsigned>> hp;
+                unsigned l = qrange[i * 2], r = qrange[i * 2 + 1];
+                for (unsigned j = 0; j < dataset.size(); j++) {
+                    if (label[j] >= l && label[j] <= r) {
+                        auto now =
+                            std::pair{dataset.dist2(j, query_list[i]), j};
+                        if (hp.size() < qnumber) {
+                            hp.push(now);
+                        } else if (now < hp.top()) {
+                            hp.pop();
+                            hp.push(now);
+                        }
+                    }
+                }
+                for (size_t j = 0; j < qnumber; j++) {
+                    ans[i * qnumber + j] = pos[hp.top().second];
+                    hp.pop();
+                }
+                if (i % 1024 == 0) {
                     spdlog::info("Processed {}/{} queries", i,
                                  query_list.size());
                 }
@@ -219,13 +238,14 @@ class Worker {
         } else {
             dataset.reorder(ord);
             Timer::start("Query");
-            for (unsigned i = 0; i < query_list.size(); i++) {
+            for (size_t i = 0; i < query_list.size(); i++) {
                 auto g_sub =
                     index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
-                // auto it = std::ranges::lower_bound(sorted_label, qrange[i * 2]) - sorted_label.begin();
+                // auto it = std::ranges::lower_bound(sorted_label, qrange[i *
+                // 2]) - sorted_label.begin();
                 Searcher searcher(dataset, g_sub);
                 auto result = searcher.beam_search(query_list[i], qnumber,
-                    // it,
+                                                   // it,
                                                    g_sub.get_header(),
                                                    beam_size, trunc_size);
                 std::ranges::copy(result | std::views::transform(GET(second)),
@@ -245,16 +265,16 @@ class Worker {
         spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
         if (!groundtruth_file.empty()) {
             auto gt = IO::load_json_to_vec(groundtruth_file);
-            for (auto &i : gt) {
+            for (auto& i : gt) {
                 i = pos[i];
             }
             unsigned correct = 0;
-            for (unsigned i = 0; i < query_list.size(); i++) {
+            for (size_t i = 0; i < query_list.size(); i++) {
                 phmap::flat_hash_map<float, unsigned> answer_cnt;
-                for (unsigned j = i * qnumber; j < (i + 1) * qnumber; j++) {
+                for (size_t j = i * qnumber; j < (i + 1) * qnumber; j++) {
                     answer_cnt[vector_list.dist2(ans[j], query_list[i])]++;
                 }
-                for (unsigned j = i * qnumber; j < (i + 1) * qnumber; j++) {
+                for (size_t j = i * qnumber; j < (i + 1) * qnumber; j++) {
                     auto now = vector_list.dist2(gt[j], query_list[i]);
                     if (answer_cnt[now] > 0) {
                         correct++;
@@ -263,9 +283,20 @@ class Worker {
                 }
             }
             spdlog::info("Recall: {:.4f}",
-                         (double)correct / (qnumber * query_list.size()));
+                         (double)correct / ((size_t)qnumber * query_list.size()));
         }
-        IO::save(fout, ans);
+        for (auto& i : ans) {
+            i = ord[i];
+        }
+        fout << "[";
+        for (unsigned i = 0; i < ans.size(); i++) {
+            fout << ans[i];
+            if (i != ans.size() - 1) {
+                fout << ",";
+            }
+        }
+        fout << "]";
+        // IO::save(fout, ans);
         return 0;
     }
 
@@ -279,7 +310,7 @@ class Worker {
     std::string knng_file;
     std::string qrange_file;
     std::string label_file;
-    unsigned k, beam_size, range_step, qnumber, trunc_size;
+    unsigned k, beam_size, range_step, qnumber, trunc_size, ef_max;
 };
 
 }  // namespace TDFANN
