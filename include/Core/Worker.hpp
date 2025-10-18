@@ -103,6 +103,35 @@ class Worker {
         return query_cmd;
     }
 
+    auto init_groundtruth(CLI::App& app) {
+        auto gt_cmd = app.add_subcommand(
+            "groundtruth", "Query nearest neighbors by brute-force for groundtruth");
+        gt_cmd
+            ->add_option("-d,--dataset_file", dataset_file,
+                         "Path to the vector file")
+            ->required();
+        gt_cmd
+            ->add_option("-q,--query_file", query_file,
+                         "Path to the query file")
+            ->required();
+        gt_cmd
+            ->add_option("-l,--label_file", label_file,
+                         "Path to the label file")
+            ->required();
+        gt_cmd
+            ->add_option("-Q,--qrange_file", qrange_file,
+                         "Path to the query range file")
+            ->required();
+        gt_cmd
+            ->add_option("-n,--qnumber", qnumber, "Number of nearest neighbors")
+            ->required();
+        gt_cmd
+            ->add_option("-r,--result_file", result_file,
+                         "Path to the result file")
+            ->required();
+        return gt_cmd;
+    }
+
     int knng() {
         spdlog::info("Building KNN Graph...");
         Vector::VectorList<float> vector_list(dataset_file);
@@ -241,8 +270,6 @@ class Worker {
             for (size_t i = 0; i < query_list.size(); i++) {
                 auto g_sub =
                     index(sorted_label, qrange[i * 2], qrange[i * 2 + 1]);
-                // auto it = std::ranges::lower_bound(sorted_label, qrange[i *
-                // 2]) - sorted_label.begin();
                 Searcher searcher(dataset, g_sub);
                 auto result = searcher.beam_search(query_list[i], qnumber,
                                                    // it,
@@ -257,9 +284,6 @@ class Worker {
             }
         }
         auto time = Timer::end("Query");
-        spdlog::info("average cmps: {:.4f}",
-                     Recorder<unsigned>::read("total_visited") * 1.0 /
-                         query_list.size());
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
         spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
@@ -296,7 +320,58 @@ class Worker {
             }
         }
         fout << "]";
-        // IO::save(fout, ans);
+        return 0;
+    }
+
+    int gen_groundtruth() {
+        Vector::VectorList<float> dataset(dataset_file);
+        Vector::VectorList<float> query_list(query_file);
+        std::ofstream fout(result_file);
+        auto label = IO::load_json_to_vec(label_file);
+        auto qrange = IO::load_json_to_vec(qrange_file);
+        std::vector<unsigned> ans((size_t)query_list.size() * qnumber);
+        if (!fout.good()) {
+            spdlog::error("Failed to open result file {}", result_file);
+            return 1;
+        }
+        Timer::start("Query");
+#pragma omp parallel for num_threads(64) schedule(dynamic)
+        for (unsigned i = 0; i < query_list.size(); i++) {
+            std::priority_queue<std::pair<float, unsigned>> hp;
+            unsigned l = qrange[i * 2], r = qrange[i * 2 + 1];
+            for (unsigned j = 0; j < dataset.size(); j++) {
+                if (label[j] >= l && label[j] <= r) {
+                    auto now =
+                        std::pair{dataset.dist2(j, query_list[i]), j};
+                    if (hp.size() < qnumber) {
+                        hp.push(now);
+                    } else if (now < hp.top()) {
+                        hp.pop();
+                        hp.push(now);
+                    }
+                }
+            }
+            for (size_t j = 0; j < qnumber; j++) {
+                ans[i * qnumber + j] = hp.top().second;
+                hp.pop();
+            }
+            if (i % 1024 == 0) {
+                spdlog::info("Processed {}/{} queries", i,
+                                query_list.size());
+            }
+        }
+        auto time = Timer::end("Query");
+        spdlog::info("Average query time: {:.4f} ns",
+                     (double)time / query_list.size());
+        spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
+        fout << "[";
+        for (unsigned i = 0; i < ans.size(); i++) {
+            fout << ans[i];
+            if (i != ans.size() - 1) {
+                fout << ",";
+            }
+        }
+        fout << "]";
         return 0;
     }
 

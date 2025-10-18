@@ -15,25 +15,10 @@ template <typename T, Graph::GraphLike G>
 class Searcher {
    public:
     Searcher(const Vector::VectorList<T>& data, const G& graph);
-
-    /**
-     * @brief Perform a linear search for the top k results.
-     *
-     * @return top k results as {distance, index}
-     */
     template <typename GoalId>
     std::vector<std::pair<T, unsigned>> linear_search(const GoalId& goal,
                                                       unsigned k);
 
-    /**
-     * @brief return top k nearest neighbours
-     *
-     * @param goal node id
-     * @param k number of neighbours
-     * @param start_node start routing node on the graph
-     * @param beam_size searching beam size
-     * @return return vector{{distance, index}}
-     */
     template <typename GoalId, IndexOrList StartNode>
     std::vector<std::pair<T, unsigned>> beam_search(
         const GoalId& goal,
@@ -47,8 +32,6 @@ class Searcher {
     const Vector::VectorList<T>& dataset;
     const G& graph;
 };
-
-// implementation of Searcher methods
 
 template <typename T, Graph::GraphLike G>
 Searcher<T, G>::Searcher(const Vector::VectorList<T>& data, const G& graph)
@@ -116,12 +99,11 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
     unsigned total = 0;
     for (int uid = 0; uid < (int)beam_size; uid++) {
         if (candidates[uid].second < offset) {
-            continue;  // 已处理过，跳过
+            continue;
         }
-        candidates[uid].second -= offset;  // 标记为已处理
+        candidates[uid].second -= offset;
         unsigned current_node = candidates[uid].second;
 
-        // 获取当前节点的邻居
         neighbours.clear();
         std::ranges::copy(graph.get_neighbours(current_node) |
                               std::views::filter([&](auto&& x) {
@@ -146,8 +128,6 @@ std::vector<std::pair<T, unsigned>> Searcher<T, G>::beam_search(
             }
         }
     }
-
-    // Recorder<unsigned>::add("total_visited", total);
 
     if (candidates_ptr != nullptr) {
         auto& c = *candidates_ptr;

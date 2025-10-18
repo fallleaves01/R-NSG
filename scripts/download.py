@@ -2,12 +2,12 @@ import os
 import tarfile
 import urllib.request
 
-dataset_dir = os.path.join(os.path.dirname(__file__), '..', 'ds')
+dataset_dir = os.path.join(os.path.dirname(__file__), '..', 'test_data')
 os.makedirs(dataset_dir, exist_ok=True)
 
 files = {
     "siftsmall.tar.gz": "ftp://ftp.irisa.fr/local/texmex/corpus/siftsmall.tar.gz",
-    "sift.tar.gz": "ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz"
+    # "sift.tar.gz": "ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz"
 }
 
 for filename, url in files.items():

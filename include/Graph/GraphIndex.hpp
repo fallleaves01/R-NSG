@@ -35,7 +35,6 @@ class GraphIndex {
     }
     void add_neighbours(unsigned from, std::ranges::range auto&& to) {
         std::ranges::copy(to, std::back_inserter(edges[from]));
-        // edges[from].insert(edges[from].end(), to.begin(), to.end());
     }
     const std::vector<Node>& get_neighbours(unsigned node) const {
         return edges[node];
@@ -52,14 +51,7 @@ class GraphIndex {
 
 struct TDData {
     unsigned label;
-    // unsigned banned_id;
 };
-
-// inline GraphIndex<TDData>::Node to_node(unsigned to,
-//                                         unsigned label,
-//                                         unsigned banned_id) {
-//     return GraphIndex<TDData>::Node{to, TDData{label, banned_id}};
-// }
 inline GraphIndex<std::monostate>::Node to_node(unsigned to) {
     return GraphIndex<std::monostate>::Node{to};
 }

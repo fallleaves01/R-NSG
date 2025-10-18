@@ -15,12 +15,10 @@ class VectorList {
    public:
     using value_type = T;
 
-    // file operations
     VectorList() = default;
     VectorList(const std::string& dataset);
     void load(const std::string& dataset);
 
-    // calculation operations
     void init_sqrs();
     template <typename Op>
     T dist2(unsigned source, const Op& goal) const;
@@ -31,16 +29,11 @@ class VectorList {
     template <typename Op>
     void dist_all_into(const Op& source,
                        std::vector<std::pair<T, unsigned>>& id) const;
-    // template <typename Op>
-    // void dist_all_into_trunc(const Op& source,
-    //                          std::vector<std::pair<T, unsigned>>& id,
-    //                          T max_val) const;
     Vector::VectorType<T> mean() const;
     template <typename Op>
     T sqr_sub_2dot(unsigned, const Op&) const;
     void reorder(const std::vector<unsigned>& order);
 
-    // struct operations
     auto operator[](unsigned index) const { return vectors.col(index); }
     unsigned size() const { return vectors.cols(); }
     unsigned dim() const { return dimension; }
@@ -48,9 +41,8 @@ class VectorList {
 
    private:
     Eigen::MatrixXf vectors;
-    std::vector<T> sqrs;  // 用于存储平方和
-    // std::vector<T> ssqrs;
-    unsigned dimension = 0;  // 向量维度
+    std::vector<T> sqrs;
+    unsigned dimension = 0;
 };
 
 }  // namespace Vector
@@ -66,7 +58,6 @@ namespace Vector {
 
 const unsigned S = 128;
 
-// file operations
 template <typename T>
 VectorList<T>::VectorList(const std::string& filename) {
     load(filename);
@@ -108,29 +99,19 @@ void VectorList<T>::reorder(const std::vector<unsigned>& order) {
     assert(order.size() == size());
     Eigen::MatrixXf tmp = vectors;
     auto tmp_s = sqrs;
-    // auto tmp_ss = ssqrs;
-    // const int d = dimension / S;
     for (unsigned i = 0; i < order.size(); i++) {
         vectors.col(i) = tmp.col(order[i]);
         sqrs[i] = tmp_s[order[i]];
-        // std::copy(tmp_ss.begin() + order[i] * d,
-        //           tmp_ss.begin() + (order[i] + 1) * d, ssqrs.begin() + i * d);
     }
     spdlog::info("reorder done");
 }
 
-// calculation operations
 template <typename T>
 void VectorList<T>::init_sqrs() {
     spdlog::info("Initializing squared norms...");
-    // const unsigned d = dimension / S;
     sqrs.resize(size());
-    // ssqrs.resize(size() * d);
     for (unsigned i = 0; i < size(); ++i) {
         sqrs[i] = vectors.col(i).squaredNorm();
-        // for (unsigned j = 0; j < d; j++) {
-        //     ssqrs[i * d + j] = vectors.col(i).segment(j * S, S).squaredNorm();
-        // }
     }
     spdlog::info("Squared norms initialized.");
 }
@@ -173,7 +154,6 @@ void VectorList<T>::dist_all_into(
             dis = sqrs[idx] - 2 * vectors.col(idx).dot(vectors.col(source));
         }
     } else {
-        // T now_2 = source.squaredNorm();
         for (size_t i = 0; i < p.size(); i++) {
             if (i + 4 < p.size()) {
                 __builtin_prefetch(vectors.col(p[i + 2].second).data());
@@ -183,52 +163,6 @@ void VectorList<T>::dist_all_into(
         }
     }
 }
-
-// template <typename T>
-// template <typename Op>
-// void VectorList<T>::dist_all_into_trunc(const Op& source,
-//                                         std::vector<std::pair<T, unsigned>>& p,
-//                                         T max_val) const {
-//     constexpr int O_id = std::is_convertible_v<Op, unsigned>
-//                              ? 1
-//                              : (DotProductWithVectorType<Op, T> ? -1 : 0);
-//     const int d = dimension / S;
-//     if (d < 2) {
-//         dist_all_into(source, p);
-//         return;
-//     }
-//     if constexpr (O_id == 1) {
-//         for (auto& [dis, idx] : p) {
-//             dis = 0;
-//             for (int i = 0; i < d && dis < max_val; i++) {
-//                 dis += ssqrs[idx * d + i] -
-//                        2 * vectors.col(idx)
-//                                .segment(i * S, S)
-//                                .dot(vectors.col(source).segment(i * S, S));
-//             }
-//         }
-//     } else {
-//         // T now_2 = source.squaredNorm();
-//         std::vector<T> r_a(d);
-//         for (int i = 0; i < d; i++) {
-//             r_a[i] = source.segment(i * S, S).squaredNorm();
-//             if (i > 0) {
-//                 r_a[i] += r_a[i - 1];
-//             }
-//         }
-//         for (auto& [dis, idx] : p) {
-//             dis = 0;
-//             for (int i = 0; i < d; i++) {
-//                 dis += ssqrs[idx * d + i] -
-//                        2 * source.segment(i * S, S)
-//                                .dot(vectors.col(idx).segment(i * S, S));
-//                 if (dis + r_a[i] >= max_val + r_a[d - 1]) {
-//                     break;
-//                 }
-//             }
-//         }
-//     }
-// }
 
 template <typename T>
 template <typename Op, std::ranges::range R_op>

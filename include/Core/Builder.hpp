@@ -18,13 +18,10 @@ class Builder {
     Graph::GraphIndex<std::monostate> nn_descent(unsigned k,
                                                  bool verbose = false) const;
 
-    // Warning: build function will reordere vector_list
     Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng,
                                   unsigned range_step, unsigned ef_max,
                                   const std::vector<unsigned>& label);
 
-    // Graph::TDGraphIndexBase build_routing(Graph::GraphLike auto&& knng,
-    //                                       unsigned d) const;
     void init_header(Graph::TDGraphIndexBase&,
                      const Vector::VectorType<T>&,
                      const std::vector<unsigned>& label,
@@ -32,7 +29,7 @@ class Builder {
                      const Vector::VectorList<T>& vector_list) const;
 
    private:
-    Vector::VectorList<T>& vector_list;  // 向量列表
+    Vector::VectorList<T>& vector_list;
 };
 
 //>===========================================================<
@@ -51,7 +48,12 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
     index.nndescent.iter = 15;
     index.verbose = verbose;
     index.add(vector_list.size(), vector_list.data());
+    spdlog::info("KNNG done, size = {}", index.nndescent.final_graph.size());
+    size_t step = vector_list.size() / 10;
     for (size_t i = 0; i < vector_list.size(); i++) {
+        if (i % step == 0) {
+            spdlog::info("Processing vector {}/{}, range = [{}, {}]", i, vector_list.size(), i * k, (i + 1) * k);
+        }
         graph.add_neighbours(i, index.nndescent.final_graph |
                                     std::views::drop(i * k) |
                                     std::views::take(k));
@@ -86,9 +88,9 @@ std::vector<std::pair<T, unsigned>> prune(
         for (unsigned i = 0; i < candidates.size(); i++) {
             if (check_valid(vector_list, candidates[i], result)) {
                 result.push_back(candidates[i]);
-                if (result.size() >= ef_max) {
-                    break;
-                }
+                // if (result.size() >= ef_max) {
+                //     break;
+                // }
             }
         }
     } else {
@@ -186,14 +188,6 @@ Graph::TDGraphIndexBase Builder<T>::build(
     unsigned n = dataset.size();
     const unsigned step = (dataset.size() + 99) / 100;
     std::atomic<unsigned> build_step = 0, total_degree = 0;
-
-    // if (dataset[0] != vector_list[index[0]]) {
-    //     throw std::runtime_error("Reorder error in Builder::build");
-    // }
-    // if (dataset.dist(0, 1) != vector_list.dist(index[0], index[1])) {
-    //     throw std::runtime_error("Reorder error in Builder::build");
-    // }
-
 #pragma omp parallel for num_threads(64) schedule(dynamic)
     for (unsigned i = 0; i < dataset.size(); i++) {
         unsigned build_now = build_step.fetch_add(1) + 1;
@@ -254,7 +248,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
         c_left = prune(dataset, c_left, (ef_max + 1) / 2);
         c_right = prune(dataset, c_right, (ef_max + 1) / 2);
 
-        total_degree += c_left.size() + c_right.size();
+        total_degree += std::min(c_left.size() + c_right.size(), (size_t)ef_max);
 
         if (output_tag) {
             auto t = Timer::end("prune");
@@ -264,7 +258,10 @@ Graph::TDGraphIndexBase Builder<T>::build(
                 i + 1, dataset.size(), (i + 1) * 100.0 / dataset.size(), t,
                 candidate_size, c_left.size() + c_right.size());
         }
-        c_left.insert(c_left.end(), c_right.begin(), c_right.end());
+        if (c_left.size() > ef_max / 2) {
+            c_left.resize(ef_max / 2);
+        }
+        c_left.insert(c_left.end(), c_right.begin(), c_right.begin() + std::min(c_right.size(), (size_t)ef_max - c_left.size()));
         std::ranges::sort(c_left);
 
         g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
@@ -272,12 +269,6 @@ Graph::TDGraphIndexBase Builder<T>::build(
                                     unsigned pid = c_left[x].second;
                                     return Graph::to_node(pid);
                                 }));
-        // g.add_neighbours(i, std::views::iota(0ul, c_right.size()) |
-        //                         std::views::transform([&](unsigned x) {
-        //                             unsigned pid = c_right[x].second;
-        //                             return Graph::to_node(pid);
-        //                         }) |
-        //                         std::views::reverse);
     }
     spdlog::info("average degree {:.2f}", total_degree * 1.0 / dataset.size());
     spdlog::info("Build finished.");

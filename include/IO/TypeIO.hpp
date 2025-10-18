@@ -42,7 +42,6 @@ bool save(std::ostream& fout, const T& obj) {
     } else {
         std::cerr << "Type T is not serializable" << std::endl;
         exit(-1);
-        // static_assert(false, "Type T is not serializable");
     }
 }
 
@@ -72,7 +71,6 @@ bool load(std::istream& fin, T& obj) {
     } else {
         std::cerr << "Type T is not deserializable" << std::endl;
         exit(-1);
-        // static_assert(false, "Type T is not deserializable");
     }
 }
 
@@ -109,7 +107,7 @@ inline std::pair<unsigned, unsigned> get_u8bin_size(std::ifstream& fin) {
 
 template <typename T>
 void read_fvecs(std::ifstream& fin, unsigned dimension, T* data) {
-    unsigned tmp, idx = 0;
+    size_t tmp = 0, idx = 0;
     while (fin.read(reinterpret_cast<char*>(&tmp), sizeof(unsigned))) {
         if (!fin.read(reinterpret_cast<char*>(data + idx * dimension),
                       dimension * sizeof(T))) {
