@@ -145,7 +145,8 @@ void read_u8bin(std::ifstream& fin, unsigned dimension, T* data) {
     spdlog::info("Finished reading u8bin file");
 }
 
-inline std::vector<unsigned> load_json_to_vec(const std::string& filename) {
+template <typename T = unsigned>
+inline std::vector<T> load_json_to_vec(const std::string& filename) {
     std::ifstream fin(filename);
     if (!fin.good()) {
         spdlog::error("Failed to open json file: {}", filename);
@@ -157,7 +158,7 @@ inline std::vector<unsigned> load_json_to_vec(const std::string& filename) {
         spdlog::error("JSON file does not contain an array: {}", filename);
         throw std::runtime_error("JSON file does not contain an array");
     }
-    std::vector<unsigned> result;
+    std::vector<T> result;
     result.reserve(j.size());
     for (const auto& item : j) {
         if (!item.is_number_unsigned()) {
@@ -165,7 +166,7 @@ inline std::vector<unsigned> load_json_to_vec(const std::string& filename) {
             throw std::runtime_error(
                 "JSON array contains non-unsigned integer values");
         }
-        result.push_back(item.get<unsigned>());
+        result.push_back(item.get<T>());
     }
     return result;
 }

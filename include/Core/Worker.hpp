@@ -166,7 +166,7 @@ class Worker {
                 return 1;
             }
         }
-        auto label = IO::load_json_to_vec(label_file);
+        auto label = IO::load_json_to_vec<std::uint64_t>(label_file);
         auto g = builder.build(*knng_ptr, range_step, ef_max, label);
         std::ofstream fout(index_file);
         if (!fout.good() || !g.save(fout)) {
@@ -187,8 +187,8 @@ class Worker {
             spdlog::error("Failed to open result file {}", result_file);
             return 1;
         }
-        auto label = IO::load_json_to_vec(label_file);
-        auto qrange = IO::load_json_to_vec(qrange_file);
+        auto label = IO::load_json_to_vec<std::uint64_t>(label_file);
+        auto qrange = IO::load_json_to_vec<std::uint64_t>(qrange_file);
         std::vector<unsigned> ans((size_t)query_list.size() * qnumber);
         std::vector<unsigned> node_id(label.size());
         std::ranges::sort(node_id, [&](unsigned x, unsigned y) {
@@ -242,7 +242,7 @@ class Worker {
 #pragma omp parallel for num_threads(64) schedule(dynamic)
             for (unsigned i = 0; i < query_list.size(); i++) {
                 std::priority_queue<std::pair<float, unsigned>> hp;
-                unsigned l = qrange[i * 2], r = qrange[i * 2 + 1];
+                auto l = qrange[i * 2], r = qrange[i * 2 + 1];
                 for (unsigned j = 0; j < dataset.size(); j++) {
                     if (label[j] >= l && label[j] <= r) {
                         auto now =
@@ -327,8 +327,8 @@ class Worker {
         Vector::VectorList<float> dataset(dataset_file);
         Vector::VectorList<float> query_list(query_file);
         std::ofstream fout(result_file);
-        auto label = IO::load_json_to_vec(label_file);
-        auto qrange = IO::load_json_to_vec(qrange_file);
+        auto label = IO::load_json_to_vec<std::uint64_t>(label_file);
+        auto qrange = IO::load_json_to_vec<std::uint64_t>(qrange_file);
         std::vector<unsigned> ans((size_t)query_list.size() * qnumber);
         if (!fout.good()) {
             spdlog::error("Failed to open result file {}", result_file);
@@ -338,7 +338,7 @@ class Worker {
 #pragma omp parallel for num_threads(64) schedule(dynamic)
         for (unsigned i = 0; i < query_list.size(); i++) {
             std::priority_queue<std::pair<float, unsigned>> hp;
-            unsigned l = qrange[i * 2], r = qrange[i * 2 + 1];
+            auto l = qrange[i * 2], r = qrange[i * 2 + 1];
             for (unsigned j = 0; j < dataset.size(); j++) {
                 if (label[j] >= l && label[j] <= r) {
                     auto now =

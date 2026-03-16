@@ -70,9 +70,9 @@ class TDGraphIndexBase : public GraphIndex<std::monostate> {
     class TDGraphIndex {
        public:
         TDGraphIndex(const TDGraphIndexBase& _base,
-                     const std::vector<unsigned>& _label,
-                     unsigned _l,
-                     unsigned _r,
+                     const std::vector<std::uint64_t>& _label,
+                     std::uint64_t _l,
+                     std::uint64_t _r,
                      unsigned _header_id)
             : base(_base), header_id(_header_id) {
             l_id = std::ranges::lower_bound(_label, _l) - _label.begin();
@@ -96,9 +96,9 @@ class TDGraphIndexBase : public GraphIndex<std::monostate> {
         const TDGraphIndexBase& base;
         unsigned l_id, r_id, header_id;
     };
-    TDGraphIndex operator()(const std::vector<unsigned>& _label,
-                            unsigned _l,
-                            unsigned _r) const {
+    TDGraphIndex operator()(const std::vector<std::uint64_t>& _label,
+                            std::uint64_t _l,
+                            std::uint64_t _r) const {
         unsigned hid =
             std::upper_bound(header_label.begin(), header_label.end(), _r) -
             header_label.begin() - 1;
@@ -117,7 +117,7 @@ class TDGraphIndexBase : public GraphIndex<std::monostate> {
             header_data.begin() + header_index[index],
             header_index[index + 1] - header_index[index]);
     }
-    void append_header(unsigned label, IndexList auto&& h) {
+    void append_header(std::uint64_t label, IndexList auto&& h) {
         header_label.push_back(label);
         header_index.push_back(header_data.size() + h.size());
         header_data.insert(header_data.end(), h.begin(), h.end());
@@ -125,7 +125,7 @@ class TDGraphIndexBase : public GraphIndex<std::monostate> {
 
    private:
     std::vector<unsigned> header_index, header_data;
-    std::vector<unsigned> header_label;
+    std::vector<std::uint64_t> header_label;
 };
 
 }  // namespace Graph

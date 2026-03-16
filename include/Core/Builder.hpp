@@ -20,11 +20,11 @@ class Builder {
 
     Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng,
                                   unsigned range_step, unsigned ef_max,
-                                  const std::vector<unsigned>& label);
+                                  const std::vector<std::uint64_t>& label);
 
     void init_header(Graph::TDGraphIndexBase&,
                      const Vector::VectorType<T>&,
-                     const std::vector<unsigned>& label,
+                     const std::vector<std::uint64_t>& label,
                      const std::ranges::range auto&& order,
                      const Vector::VectorList<T>& vector_list) const;
 
@@ -134,12 +134,12 @@ std::vector<std::pair<T, unsigned>> prune(
 template <typename T>
 void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
                              const Vector::VectorType<T>& center,
-                             const std::vector<unsigned>& label,
+                             const std::vector<std::uint64_t>& label,
                              const std::ranges::range auto&& order,
                              const Vector::VectorList<T>& vector_list) const {
     spdlog::info("Init header");
     std::vector<std::pair<T, unsigned>> pre_header;
-    unsigned lst_label = unsigned(-1), header_size = 0, header_cnt = 0;
+    std::uint64_t lst_label = std::numeric_limits<std::uint64_t>::max(), header_size = 0, header_cnt = 0;
     for (auto i : order) {
         if (label[i] != lst_label && lst_label != unsigned(-1)) {
             if (pre_header.size() > 20) {
@@ -169,7 +169,7 @@ template <typename T>
 Graph::TDGraphIndexBase Builder<T>::build(
     Graph::GraphLike auto&& knng,
     unsigned range_step, unsigned ef_max,
-    const std::vector<unsigned>& label) {
+    const std::vector<std::uint64_t>& label) {
     omp_set_num_threads(64);
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
