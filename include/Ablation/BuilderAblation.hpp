@@ -9,7 +9,12 @@
 #include <Utils/Timer.hpp>
 #include <Vector/VectorList.hpp>
 
-namespace TDFANN {
+namespace TDFANN::Ablation {
+
+struct BuildOptions {
+    bool enable_range_augmentation = true;
+    bool enable_side_split_pruning = true;
+};
 
 template <typename T>
 class Builder {
@@ -20,7 +25,8 @@ class Builder {
 
     Graph::TDGraphIndexBase build(Graph::GraphLike auto&& knng,
                                   unsigned range_step, unsigned ef_max,
-                                  const std::vector<std::uint64_t>& label);
+                                  const std::vector<std::uint64_t>& label,
+                                  const BuildOptions& options = {});
 
     void init_header(Graph::TDGraphIndexBase&,
                      const Vector::VectorType<T>&,
@@ -53,7 +59,8 @@ Graph::GraphIndex<std::monostate> Builder<T>::nn_descent(unsigned k,
     size_t step = std::max<size_t>(1, vector_list.size() / 10);
     for (size_t i = 0; i < vector_list.size(); i++) {
         if (i % step == 0) {
-            spdlog::info("Processing vector {}/{}, range = [{}, {}]", i, vector_list.size(), i * k, (i + 1) * k);
+            spdlog::info("Processing vector {}/{}, range = [{}, {}]", i,
+                         vector_list.size(), i * k, (i + 1) * k);
         }
         graph.add_neighbours(i, index.nndescent.final_graph |
                                     std::views::drop(i * k) |
@@ -81,7 +88,7 @@ bool check_valid(const Vector::VectorList<T>& vector_list,
 template <typename T>
 std::vector<std::pair<T, unsigned>> prune(
     const Vector::VectorList<T>& vector_list,
-    const std::vector<std::pair<T, unsigned>>& candidates, 
+    const std::vector<std::pair<T, unsigned>>& candidates,
     unsigned ef_max = 1000,
     std::vector<unsigned>* tag = nullptr) {
     std::vector<std::pair<T, unsigned>> result;
@@ -140,7 +147,8 @@ void Builder<T>::init_header(Graph::TDGraphIndexBase& g,
                              const Vector::VectorList<T>& vector_list) const {
     spdlog::info("Init header");
     std::vector<std::pair<T, unsigned>> pre_header;
-    std::uint64_t lst_label = std::numeric_limits<std::uint64_t>::max(), header_size = 0, header_cnt = 0;
+    std::uint64_t lst_label = std::numeric_limits<std::uint64_t>::max(),
+                  header_size = 0, header_cnt = 0;
     for (auto i : order) {
         if (label[i] != lst_label && lst_label != unsigned(-1)) {
             if (pre_header.size() > 20) {
@@ -170,11 +178,15 @@ template <typename T>
 Graph::TDGraphIndexBase Builder<T>::build(
     Graph::GraphLike auto&& knng,
     unsigned range_step, unsigned ef_max,
-    const std::vector<std::uint64_t>& label) {
+    const std::vector<std::uint64_t>& label,
+    const BuildOptions& options) {
     const int thread_count = std::max(1, std::min(64, omp_get_max_threads()));
     omp_set_num_threads(thread_count);
     spdlog::info("Building TDF Graph Index, index size {}...",
                  vector_list.size());
+    spdlog::info(
+        "Build options: range_augmentation={}, side_split_pruning={}",
+        options.enable_range_augmentation, options.enable_side_split_pruning);
     Timer::start("build_time");
     Graph::TDGraphIndexBase g(vector_list.size());
     auto center = vector_list.mean();
@@ -182,7 +194,7 @@ Graph::TDGraphIndexBase Builder<T>::build(
     std::vector<unsigned> index, pos;
     std::tie(index, pos) = Utils::order_of_label(label);
     auto sorted_label = Utils::sorted_vec(label);
-    auto &dataset = vector_list;
+    auto& dataset = vector_list;
     dataset.reorder(index);
     init_header(g, center, sorted_label, std::views::iota(0ul, label.size()),
                 dataset);
@@ -196,26 +208,33 @@ Graph::TDGraphIndexBase Builder<T>::build(
         bool output_tag = build_now % step == 0 || build_now == dataset.size();
 
         std::vector<std::pair<T, unsigned>> c_left, c_right;
+        auto append_candidate = [&](unsigned neighbour) {
+            if (neighbour < i) {
+                c_left.push_back({0, neighbour});
+            } else if (neighbour > i) {
+                c_right.push_back({0, neighbour});
+            }
+        };
+
         for (const auto& neighbour :
              knng.get_neighbours_id(index[i]) |
                  std::views::transform([&](unsigned x) { return pos[x]; })) {
-            if (neighbour < i) {
-                c_left.push_back({0, neighbour});
-            } else {
-                c_right.push_back({0, neighbour});
+            append_candidate(neighbour);
+        }
+        if (options.enable_range_augmentation) {
+            for (unsigned j = i - std::min(i, range_step); j < i; j++) {
+                append_candidate(j);
             }
-        }
-        for (unsigned j = i - std::min(i, range_step); j < i; j++) {
-            c_left.push_back({0, j});
-        }
-        for (unsigned j = i + 1; j < std::min(i + range_step, n); j++) {
-            c_right.push_back({0, j});
+            for (unsigned j = i + 1; j < std::min(i + range_step, n); j++) {
+                append_candidate(j);
+            }
         }
 
         std::ranges::sort(c_left, std::greater<std::pair<T, unsigned>>{});
         std::ranges::sort(c_right);
         c_left.erase(std::ranges::unique(c_left).begin(), c_left.end());
         c_right.erase(std::ranges::unique(c_right).begin(), c_right.end());
+
         auto l_dis =
             dataset.dist_all(i, c_left | std::views::transform(GET(second)));
         auto r_dis =
@@ -227,30 +246,38 @@ Graph::TDGraphIndexBase Builder<T>::build(
             c_right[j].first = r_dis[j];
         }
 
-        // if (c_left.size() > 300) {
-        //     std::nth_element(l_dis.begin(), l_dis.begin() + l_dis.size() / 4, l_dis.end());
-        //     T lim = l_dis[l_dis.size() / 4];
-        //     auto it = std::remove_if(c_left.begin() + 300, c_left.end(), [&](auto &&x) { return x.first > lim; });
-        //     c_left.erase(it, c_left.end());
-        // }
-        // if (c_right.size() > 300) {
-        //     std::nth_element(r_dis.begin(), r_dis.begin() + r_dis.size() / 4, r_dis.end());
-        //     T lim = r_dis[r_dis.size() / 4];
-        //     auto it = std::remove_if(c_right.begin() + 300, c_right.end(), [&](auto &&x) { return x.first > lim; });
-        //     c_right.erase(it, c_right.end());
-        // }
-
-        unsigned candidate_size = 0;
+        unsigned candidate_size = c_left.size() + c_right.size();
         if (output_tag) {
             Timer::start("prune");
-            candidate_size = c_left.size() + c_right.size();
         }
 
-        // std::vector<unsigned> l_bid, r_bid;
-        c_left = prune(dataset, c_left, (ef_max + 1) / 2);
-        c_right = prune(dataset, c_right, (ef_max + 1) / 2);
+        std::vector<std::pair<T, unsigned>> final_edges;
+        if (options.enable_side_split_pruning) {
+            c_left = prune(dataset, c_left, (ef_max + 1) / 2);
+            c_right = prune(dataset, c_right, (ef_max + 1) / 2);
 
-        total_degree += std::min(c_left.size() + c_right.size(), (size_t)ef_max);
+            if (c_left.size() > ef_max / 2) {
+                c_left.resize(ef_max / 2);
+            }
+            c_left.insert(
+                c_left.end(), c_right.begin(),
+                c_right.begin() +
+                    std::min(c_right.size(), (size_t)ef_max - c_left.size()));
+            std::ranges::sort(c_left);
+            final_edges = std::move(c_left);
+        } else {
+            std::vector<std::pair<T, unsigned>> c_all;
+            c_all.reserve(candidate_size);
+            c_all.insert(c_all.end(), c_left.begin(), c_left.end());
+            c_all.insert(c_all.end(), c_right.begin(), c_right.end());
+            std::ranges::sort(c_all);
+            final_edges = prune(dataset, c_all, ef_max);
+            if (final_edges.size() > ef_max) {
+                final_edges.resize(ef_max);
+            }
+        }
+
+        total_degree += final_edges.size();
 
         if (output_tag) {
             auto t = Timer::end("prune");
@@ -258,17 +285,12 @@ Graph::TDGraphIndexBase Builder<T>::build(
                 "Build progress: {}/{} ({:.2f}%), prune time cost {}, "
                 "candidate size {} -> {}",
                 i + 1, dataset.size(), (i + 1) * 100.0 / dataset.size(), t,
-                candidate_size, c_left.size() + c_right.size());
+                candidate_size, final_edges.size());
         }
-        if (c_left.size() > ef_max / 2) {
-            c_left.resize(ef_max / 2);
-        }
-        c_left.insert(c_left.end(), c_right.begin(), c_right.begin() + std::min(c_right.size(), (size_t)ef_max - c_left.size()));
-        std::ranges::sort(c_left);
 
-        g.add_neighbours(i, std::views::iota(0ul, c_left.size()) |
+        g.add_neighbours(i, std::views::iota(0ul, final_edges.size()) |
                                 std::views::transform([&](unsigned x) {
-                                    unsigned pid = c_left[x].second;
+                                    unsigned pid = final_edges[x].second;
                                     return Graph::to_node(pid);
                                 }));
     }
@@ -278,4 +300,4 @@ Graph::TDGraphIndexBase Builder<T>::build(
     return g;
 }
 
-}  // namespace TDFANN
+}  // namespace TDFANN::Ablation

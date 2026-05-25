@@ -14,7 +14,9 @@ concept IndexOrList =
 
 template <typename Op, typename T>
 concept IndexOrVector =
-    std::convertible_to<Op, unsigned> || Vector::DotProductWithVectorType<Op, T>;
+    std::convertible_to<Op, unsigned> ||
+    Vector::DotProductWithVectorType<Op, T> ||
+    Vector::VectorIndexable<Op>;
 
 template <typename Op>
 concept IsTDFG = std::is_same_v<Op, Graph::TDGraphIndexBase> ||

@@ -7,8 +7,38 @@ build/
 logs/
 dataset/
 test_data/
+artifacts/
+.artifacts/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local scratch files
+*.swp
+*.swo
+nohup.out
+tmp.txt
+.tmp*
+
+# Research/revision artifacts that should not be part of the public code drop.
+# Keep the stable algorithm notes visible; ignore dated handoff/review dumps,
+# generated experiment tables, plots, and large result bundles.
+doc/**
+!doc/
+!doc/ENGINEERING_CONTEXT.md
+!doc/ALGORITHM_PSEUDOCODE.md
+paper/
+
+# Most Python files under scripts/ are one-off experiment launchers/analyzers.
+# Public examples are explicitly unignored below.
+scripts/*
+!scripts/
+!scripts/download.py
+!scripts/run_py_api.py
+!scripts/run_siftsmall_rnsg_new_demo.py
+!scripts/run_rnsg_new_curve.py
+!scripts/rnsg_curve_utils.py
 
 # MacOS Cache
 .DS_Store
-
-

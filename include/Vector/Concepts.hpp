@@ -22,6 +22,12 @@ concept indexable = requires(T container, unsigned index) {
 };
 
 template <typename T>
+concept VectorIndexable = requires(const T& container, unsigned index) {
+    { container[index] } -> std::convertible_to<double>;
+    { container.size() } -> std::convertible_to<std::size_t>;
+};
+
+template <typename T>
 concept IsFloat = std::is_same_v<T, float> || std::is_same_v<T, double>;
 
 template <typename T>

@@ -4,21 +4,22 @@
 
 #include <Core/Builder.hpp>
 #include <Graph/GraphIndex.hpp>
+#include <IO/TypeIO.hpp>
+#include <RNSG/Searcher.hpp>
 #include <Utils/InitFunc.hpp>
 #include <Vector/VectorList.hpp>
-#include "IO/TypeIO.hpp"
 #include <omp.h>
 
-namespace TDFANN {
+namespace TDFANN::RNSG {
 
 class Worker {
    public:
-    Worker(CLI::App& app) {
+    explicit Worker(CLI::App& app) {
         app.add_flag("--verbose", verbose, "Enable verbose logging");
         app.require_subcommand(1);
     }
 
-    bool verbosed() { return verbose; }
+    bool verbosed() const { return verbose; }
 
     auto init_knng(CLI::App& app) {
         auto knng_cmd = app.add_subcommand("knng", "Build the KNN Graph");
@@ -101,16 +102,13 @@ class Worker {
                               "Path to the groundtruth file");
         query_cmd->add_option("-t,--trunc_size", trunc_size, "trunc size")
             ->required();
-        query_cmd->add_option("--survival_anno", survival_anno_file,
-                              "Path to survival annotation file (binary, from rnsg_annotate)");
-        query_cmd->add_option("--survival_skeleton", survival_skeleton,
-                              "Number of prefix edges to always keep as skeleton (default: 8)");
         return query_cmd;
     }
 
     auto init_groundtruth(CLI::App& app) {
         auto gt_cmd = app.add_subcommand(
-            "groundtruth", "Query nearest neighbors by brute-force for groundtruth");
+            "groundtruth",
+            "Query nearest neighbors by brute-force for groundtruth");
         gt_cmd
             ->add_option("-d,--dataset_file", dataset_file,
                          "Path to the vector file")
@@ -229,39 +227,7 @@ class Worker {
             }
         } else {
             dataset.reorder(ord);
-
-            // --- Survival annotation loading ---
-            // Format: [uint32_t N] [per node: uint32_t deg, then deg x (uint64_t L_drop, uint64_t R_drop)]
-            std::vector<std::vector<std::pair<uint64_t, uint64_t>>> survival_anno;
-            const uint64_t SURVIVAL_MAX_LABEL =
-                sorted_label.empty() ? 99999 : sorted_label.back();
-            if (!survival_anno_file.empty()) {
-                spdlog::info("Loading survival annotations from {}...",
-                             survival_anno_file);
-                std::ifstream fin(survival_anno_file, std::ios::binary);
-                if (!fin.good()) {
-                    spdlog::error("Cannot open survival annotation file: {}",
-                                  survival_anno_file);
-                    return 1;
-                }
-                uint32_t anno_n;
-                fin.read(reinterpret_cast<char*>(&anno_n), sizeof(anno_n));
-                if (anno_n != static_cast<uint32_t>(dataset.size())) {
-                    spdlog::error("Annotation node count {} != dataset size {}",
-                                  anno_n, dataset.size());
-                    return 1;
-                }
-                survival_anno.resize(anno_n);
-                for (uint32_t ni = 0; ni < anno_n; ++ni) {
-                    uint32_t deg;
-                    fin.read(reinterpret_cast<char*>(&deg), sizeof(deg));
-                    survival_anno[ni].resize(deg);
-                    fin.read(reinterpret_cast<char*>(survival_anno[ni].data()),
-                             deg * 2 * sizeof(uint64_t));
-                }
-                spdlog::info("Loaded survival annotations for {} nodes", anno_n);
-            }
-
+            BeamScratch<float> scratch(dataset.size(), beam_size, trunc_size);
             Timer::start("Query");
             for (size_t i = 0; i < query_list.size(); i++) {
                 auto ui = static_cast<unsigned>(i);
@@ -277,125 +243,19 @@ class Worker {
                 }
 
                 auto g_sub = index(sorted_label, ql, qr);
+                Searcher<float, decltype(g_sub)> searcher(dataset, g_sub);
 
-                // Survival-gated neighbor access
-                // If annotation loaded, wrap g_sub with survival gating
-                // Gate rule: if ql <= L_drop(x) OR qr >= R_drop(x), abandon x
-                // Skeleton (first survival_skeleton edges) always kept
-                // --- Survival Gated Graph Wrapper ---
-                // Wraps TDGraphIndex with additional survival gating
-                struct SurvivalGatedGraph {
-                    const Graph::TDGraphIndexBase& base;
-                    const std::vector<std::vector<std::pair<uint64_t, uint64_t>>>& anno;
-                    const std::vector<uint64_t>& sorted_labels;
-                    uint64_t ql_val, qr_val;
-                    unsigned range_l_id, range_r_id;
-                    unsigned skeleton;
-                    uint64_t max_label;
-
-                    auto get_neighbours(unsigned node) const {
-                        const auto& nbs = base.get_neighbours(node);
-                        std::vector<Graph::GraphIndex<std::monostate>::Node> filtered;
-                        unsigned edge_idx = 0;
-                        for (const auto& nb : nbs) {
-                            // Skeleton: always keep first N edges (if in range)
-                            if (edge_idx < skeleton) {
-                                if (nb.to >= range_l_id &&
-                                    nb.to <= range_r_id) {
-                                    filtered.push_back(nb);
-                                }
-                                edge_idx++;
-                                continue;
-                            }
-                            // Range filter
-                            if (nb.to < range_l_id || nb.to > range_r_id) {
-                                edge_idx++;
-                                continue;
-                            }
-                            // Survival gating
-                            if (node < anno.size() &&
-                                edge_idx < anno[node].size()) {
-                                auto [l_drop, r_drop] = anno[node][edge_idx];
-                                if (l_drop > 0 && ql_val <= l_drop) {
-                                    edge_idx++;
-                                    continue;
-                                }
-                                if (r_drop < max_label && qr_val >= r_drop) {
-                                    edge_idx++;
-                                    continue;
-                                }
-                            }
-                            filtered.push_back(nb);
-                            edge_idx++;
-                        }
-                        return filtered;
-                    }
-
-                    auto get_neighbours_id(unsigned node) const {
-                        auto nbs = get_neighbours(node);
-                        std::vector<unsigned> ids;
-                        ids.reserve(nbs.size());
-                        for (const auto& x : nbs) {
-                            ids.push_back(x.to);
-                        }
-                        return ids;
-                    }
-
-                    auto get_header() const {
-                        auto hid =
-                            std::ranges::upper_bound(sorted_labels, qr_val) -
-                            sorted_labels.begin();
-                        if (hid > 0) --hid;
-                        auto hdr = base.get_header(hid);
-                        std::vector<unsigned> result;
-                        for (auto x : hdr) {
-                            if (x >= range_l_id && x <= range_r_id) {
-                                result.push_back(x);
-                            }
-                        }
-                        return result;
-                    }
-                };
-
+                auto header = Utils::to_vector(g_sub.get_header());
                 std::vector<std::pair<float, unsigned>> result;
-                if (!survival_anno.empty()) {
-                    // Survival-gated search
-                    SurvivalGatedGraph sgg{
-                        index,          survival_anno, sorted_label,
-                        ql,             qr,
-                        static_cast<unsigned>(range_l),
-                        static_cast<unsigned>(
-                            std::max<int64_t>(0, (int64_t)range_r - 1)),
-                        survival_skeleton, SURVIVAL_MAX_LABEL};
-
-                    Searcher searcher(dataset, sgg);
-                    auto header = sgg.get_header();
-                    if (!header.empty()) {
-                        result = searcher.beam_search(query_list[ui], qnumber,
-                                                      header, beam_size,
-                                                      trunc_size);
-                    } else {
-                        result = searcher.beam_search(
-                            query_list[ui], qnumber,
-                            static_cast<unsigned>(range_l), beam_size,
-                            trunc_size);
-                    }
+                if (!header.empty()) {
+                    result = searcher.beam_search(query_list[ui], qnumber,
+                                                  header, beam_size,
+                                                  trunc_size, scratch);
                 } else {
-                    // Standard search (no gating)
-                    Searcher searcher(dataset, g_sub);
-                    auto header = Utils::to_vector(g_sub.get_header());
-                    if (!header.empty()) {
-                        result = searcher.beam_search(query_list[ui], qnumber,
-                                                      header, beam_size,
-                                                      trunc_size);
-                    } else {
-                        auto fallback = static_cast<unsigned>(
-                            std::ranges::lower_bound(sorted_label, ql) -
-                            sorted_label.begin());
-                        result = searcher.beam_search(query_list[ui], qnumber,
-                                                      fallback, beam_size,
-                                                      trunc_size);
-                    }
+                    auto fallback = static_cast<unsigned>(range_l);
+                    result = searcher.beam_search(query_list[ui], qnumber,
+                                                  fallback, beam_size,
+                                                  trunc_size, scratch);
                 }
 
                 std::ranges::copy(result | std::views::transform(GET(second)),
@@ -407,10 +267,12 @@ class Worker {
                 }
             }
         }
+
         auto time = Timer::end("Query");
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
         spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
+
         if (!groundtruth_file.empty()) {
             auto gt = IO::load_json_to_vec(groundtruth_file);
             for (auto& i : gt) {
@@ -437,6 +299,7 @@ class Worker {
             spdlog::info("Recall: {:.4f}",
                          (double)correct / ((size_t)qnumber * query_list.size()));
         }
+
         for (auto& i : ans) {
             i = ord[i];
         }
@@ -462,6 +325,7 @@ class Worker {
             spdlog::error("Failed to open result file {}", result_file);
             return 1;
         }
+
         Timer::start("Query");
         const int thread_count = runtime_thread_count();
 #pragma omp parallel for num_threads(thread_count) schedule(dynamic)
@@ -487,13 +351,15 @@ class Worker {
             }
             if ((ui & 1023u) == 0) {
                 spdlog::info("Processed {}/{} queries", ui,
-                                query_list.size());
+                             query_list.size());
             }
         }
+
         auto time = Timer::end("Query");
         spdlog::info("Average query time: {:.4f} ns",
                      (double)time / query_list.size());
         spdlog::info("QPS: {:.4f}", query_list.size() * 1e9 / time);
+
         fout << "[";
         for (unsigned i = 0; i < ans.size(); i++) {
             fout << ans[i];
@@ -510,7 +376,8 @@ class Worker {
         return std::max(1, std::min(64, omp_get_max_threads()));
     }
 
-    bool verbose, brute = false;
+    bool verbose = false;
+    bool brute = false;
     std::string dataset_file;
     std::string index_file;
     std::string query_file;
@@ -519,9 +386,12 @@ class Worker {
     std::string knng_file;
     std::string qrange_file;
     std::string label_file;
-    std::string survival_anno_file;
-    unsigned k, beam_size, range_step, qnumber, trunc_size, ef_max;
-    unsigned survival_skeleton = 8;
+    unsigned k = 0;
+    unsigned beam_size = 0;
+    unsigned range_step = 0;
+    unsigned qnumber = 0;
+    unsigned trunc_size = 0;
+    unsigned ef_max = 0;
 };
 
-}  // namespace TDFANN
+}  // namespace TDFANN::RNSG

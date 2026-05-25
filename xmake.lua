@@ -7,8 +7,10 @@ add_rules("plugin.compile_commands.autoupdate", {
 })
 
 add_repositories("local repo")
-add_requires("cli11", "spdlog", "eigen", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+add_requires("cli11", "eigen", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+add_requires("spdlog", {system = false, configs = {header_only = true}})
 add_requires("faiss-cpu")
+add_includedirs("third_party/simsimd-6.5.16/include")
 -- add_requires("mkl", {system = true})
 
 target("TDFANN")
@@ -115,3 +117,357 @@ target("TDFANN")
 -- @endcode
 --
 
+
+target("TDFANN_ablation")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_ablation.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("TDFANN_analyzer")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_analyzer.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_rnsg.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg_diag")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_rnsg_diag.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("enhanced_rnsg")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_enhanced_rnsg.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg-new")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_rnsg_new.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1", "NDEBUG")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg-2d")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_rnsg_2d.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1", "NDEBUG")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg-2d-fast")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_rnsg_2d_fast.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1", "NDEBUG")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg_survival")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_survival.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+    end
+
+target("rnsg_graph_reorder")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_graph_reorder.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+    end
+
+target("rnsg_trace_reorder")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_trace_reorder.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native -flto=auto", {force = true})
+        add_ldflags("-flto=auto", {force = true})
+    end
+
+target("rnsg_annotate")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_annotate.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+    end
+
+target("rnsg_conflict_audit")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_conflict_audit.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+    end
+
+target("rnsg_conflict_annotate")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_conflict_annotate.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+    end
+
+target("rnsg_role_annotate")
+    set_kind("binary")
+    set_languages("c++20")
+    add_links("stdc++")
+    add_syslinks("pthread")
+
+    add_packages("cli11", "spdlog", "eigen", "faiss-cpu", "openmp", "openblas", "parallel-hashmap", "mimalloc", "nlohmann_json")
+    add_files("src/main_role_annotate.cpp")
+    add_defines("MI_MALLOC_OVERRIDE=1")
+
+    set_pcxxheader("include/PCH.hpp")
+    add_cxxflags("-Wno-unknown-pragmas")
+    add_cxxflags("-Wno-ignored-optimization-argument")
+    add_cxxflags("-Winvalid-pch")
+
+    add_includedirs("include")
+    set_warnings("all", "extra")
+
+    if is_mode("release") then
+        set_policy("build.optimization.lto", true)
+        add_cxflags("-O3 -march=native -mtune=native")
+    end

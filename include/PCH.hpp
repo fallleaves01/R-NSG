@@ -2,7 +2,12 @@
 
 // 类型和工具
 #include <concepts>
+#include <cstdint>
 #include <cstddef>
+#include <cstdlib>
+#include <limits>
+#include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <variant>
 #include <span>
